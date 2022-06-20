@@ -65,8 +65,10 @@ elif uploaded_file is None:
         seed_article_df = seed_article_df_example
         wait = 1
 
-
-st.dataframe(seed_article_df)
+try: 
+    st.dataframe(seed_article_df)
+except: 
+    st.write('Waiting on user input')
 
 st.write("Intitial starting articles (pearls) loaded sucessfully. ")
 st.write('### Step 2 : Conduct automated handsearching and deduplication based on your initial set of articles.')
