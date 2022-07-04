@@ -31,9 +31,9 @@ st.write('---')
 
 st.write('### Step 2 : Input Starting Set of Articles')
 st.write('1. Provide a CSV file with your initial starting set of articles, with article DOI and article Title.')
-st.write('2. There must be 2 columns. Named seed_Id, and seed_Title')
+st.write('2. There must be 2 columns. Named seed_Id, and seed_Title (case-sensitive)')
 
-uploaded_file = st.file_uploader('Upload starting set of articles as CSV file', key='user_starting_article_input')
+uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_input')
 
 st.write('3. We have prepared an example of required formatting as below.', seed_article_df_example)
 st.write('*For best results, choose articles that you would expect to be influential in your research question. For example, influential trials, systematic reviews and perspective pieces.*')
