@@ -30,7 +30,6 @@ elif iter_option ==2:
 st.write('---')
 
 st.write('### Step 2 : Input Starting Set of Articles')
-st.write('Instructions:')
 st.write('1. Provide a CSV file with your initial starting set of articles, with article DOI and article Title.')
 st.write('2. There must be 2 columns. Named seed_Id, and seed_Title')
 
@@ -40,7 +39,7 @@ st.write('3. We have prepared an example of required formatting as below.', seed
 st.write('*For best results, choose articles that you would expect to be influential in your research question. For example, influential trials, systematic reviews and perspective pieces.*')
 
 
-st.write('Alternatively, you can try out a demo set of articles:')
+st.write('Alternatively, you can try out our demo set of articles:')
 
 if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
     st.write('Using demo starting article set. Loading data in..')
