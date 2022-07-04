@@ -92,7 +92,6 @@ class automated_handsearch:
         
         missing_abs_semantic_scholar_ID['abstract']=missing_abs_semantic_scholar_ID['DOI'].apply(self.retrieve_openalex_abs)
         fixed_article_df = missing_abs_semantic_scholar_ID
-        fixed_article_df.to_csv('open_alex_fix_attempt.csv')
         return fixed_article_df
     
                 
