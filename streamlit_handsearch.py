@@ -18,6 +18,7 @@ st.write('If this tool is useful, we would love for you to cite us at [Link]. We
 
 
 #preparing example seed articles
+#move this to a separate demo class 
 article_title = ['Systematic review automation technologies',
                       'Text mining for search term development in systematic reviewing: A discussion of some methods and challenges',
                       'Toward systematic review automation: a practical guide to using machine learning tools in research synthesis',
@@ -42,8 +43,6 @@ def load_seed_article_data(seed_article_title,seed_article_doi):
 
 seed_article_df_example = load_seed_article_data(article_title,article_doi)
 
-
-
 st.write('### Step 1 : Input Starting Set of Articles')
 st.write('Instructions:')
 st.write('1. Provide a CSV file with your initial starting set of articles, with article DOI and article Title.')
@@ -51,50 +50,52 @@ st.write('2. There must be 2 columns. Named seed_Id, and seed_Title')
 st.write('3. We have prepared an example of required formatting as below.', seed_article_df_example)
 st.write('*For best results, choose articles that you would expect to be influential in your research question. For example, influential trials, systematic reviews and perspective pieces.*')
 
-uploaded_file = st.file_uploader('Upload starting set of articles as CSV file', key='user_starting_article_input')
-
-wait = 0
-
-if uploaded_file is not None: 
-    seed_article_df = pd.read_csv(uploaded_file)
-    wait = 1
-
-elif uploaded_file is None: 
-    if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
-        uploaded_file = seed_article_df_example
-        seed_article_df = seed_article_df_example
-        wait = 1
-
-try: 
-    st.dataframe(seed_article_df)
-except: 
-    st.write('Waiting on user input')
-
-st.write("Intitial starting articles (pearls) loaded sucessfully. ")
-st.write('### Step 2 : Conduct automated handsearching and deduplication based on your initial set of articles.')
-handsearch_instance = automated_handsearch(seed_article_df,semantic_scholar_key)
-
-st.write('Now conducting automated handsearching. Give us a minute')
-#number of iterations 
-iter_num = 1
-for i in range(iter_num): 
-    #obtain id of all cited papers and papers that cite the articles in seed dataset
-    result_dedupe, error_log_step_1 = handsearch_instance.obtain_paper_citation()
-
-
-st.write('Handsearching done over', iter_num, ' iteration. We found a total of: ', len(result_dedupe), 'unique articles based on your initial sample size of ', len(seed_article_df), 'articles.')
-st.write('Results: ', result_dedupe)
-
-@st.cache
 def convert_df(df): 
     return df.to_csv().encode('utf-8')
 
-results_csv = convert_df(result_dedupe)
+def run_handsearch(seed_article_df): 
 
-st.write('Metadata retrieval done 🎉. Download ready as CSV file. For reference the encoding is in UTF-8. ', key='Download Results')
-st.download_button(
-    label = 'Download results as CSV file',
-    data = results_csv,
-    file_name = 'automated_handsearch_results.csv',
-    mime='text/csv',
-)
+    try: 
+        st.dataframe(seed_article_df)
+    except: 
+        st.write('Waiting on user input')
+
+    st.write("Intitial starting articles (pearls) loaded sucessfully. ")
+    st.write('### Step 2 : Conduct automated handsearching and deduplication based on your initial set of articles.')
+    handsearch_instance = automated_handsearch(seed_article_df,semantic_scholar_key)
+
+    st.write('Now conducting automated handsearching. Give us a minute')
+    #number of iterations 
+    iter_num = 1
+    for i in range(iter_num): 
+        #obtain id of all cited papers and papers that cite the articles in seed dataset
+        result_dedupe = handsearch_instance.backwards_forwards_citation()
+
+
+
+# take out this chhunk of code out of this function to prevent app from ending prematurely 
+    st.write('Handsearching done over', iter_num, ' iteration. We found a total of: ', len(result_dedupe), 'unique articles based on your initial sample size of ', len(seed_article_df), 'articles.')
+    st.write('Results: ', result_dedupe)
+
+    results_csv = convert_df(result_dedupe)
+
+    st.write('Metadata retrieval done 🎉. Download ready as CSV file. For reference the encoding is in UTF-8. ', key='Download Results')
+    st.download_button(
+        label = 'Download results as CSV file',
+        data = results_csv,
+        file_name = 'automated_handsearch_results.csv',
+        mime='text/csv',
+    )
+    
+  
+
+uploaded_file = st.file_uploader('Upload starting set of articles as CSV file', key='user_starting_article_input')
+if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
+    st.write('Using demo startingf article set. Loading data in..')
+    uploaded_file = seed_article_df_example
+    seed_article_df = seed_article_df_example
+    run_handsearch(seed_article_df)
+    
+elif uploaded_file is not None: 
+    seed_article_df = pd.read_csv(uploaded_file)
+    run_handsearch(seed_article_df)
