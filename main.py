@@ -20,16 +20,37 @@ st.write('### Step 1 : Input Starting Set of Articles')
 st.write('Instructions:')
 st.write('1. Provide a CSV file with your initial starting set of articles, with article DOI and article Title.')
 st.write('2. There must be 2 columns. Named seed_Id, and seed_Title')
+
+uploaded_file = st.file_uploader('Upload starting set of articles as CSV file', key='user_starting_article_input')
+
 st.write('3. We have prepared an example of required formatting as below.', seed_article_df_example)
 st.write('*For best results, choose articles that you would expect to be influential in your research question. For example, influential trials, systematic reviews and perspective pieces.*')
 
 
-uploaded_file = st.file_uploader('Upload starting set of articles as CSV file', key='user_starting_article_input')
+
 
 if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
     st.write('Using demo starting article set. Loading data in..')
-    run_handsearch(seed_article_df_example)
+    if iter_num ==1: 
+        run_handsearch(seed_article_df_example)
+    elif iter_num == 2:
+        st.write('Conducting handsearch for 2 iterations. This may take a while.')
+        ## implement loop 
     
-elif uploaded_file is not None: 
-    seed_article_df = pd.read_csv(uploaded_file)
-    run_handsearch(seed_article_df)
+if uploaded_file is not None: 
+
+    if iter_num ==1: 
+        seed_article_df = pd.read_csv(uploaded_file)
+        run_handsearch(seed_article_df)
+    elif iter_num == 2:
+        print('Conducting handsearch for 2 iterations. This may take a while.')
+        seed_article_df = pd.read_csv(uploaded_file) 
+        ## implement loop 
+
+iter_option =st.radio(
+    "Select number of snowball / handsearch iterations you would like:", (1,2))
+
+if iter_option == 1: 
+    iter_num = 1
+elif iter_option ==2: 
+    iter_num = 2
