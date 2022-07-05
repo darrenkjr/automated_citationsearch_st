@@ -17,10 +17,10 @@ st.write('Under the hood we are querying the Semantic Scholar Application Progra
 st.write('This is part of an overarching protocol to develop and evaluate automated methods to streamline evidence synthesis : [Protocol here]')
 st.write('If this tool is useful, we would love for you to cite us at [Link]. We are tracking the use of this tool as a means to understand whether handsearching should form best practice in evidence retrieval. We are developing software to extract data from PRISMA diagrams, and hope to release this publically soon. Citing us would mean that we can systematically study how citation based methods perform in combination with traditional search strategies.')
 st.write('---')
-st.write('### Step 1: Set number of handsearch / snowball iterations')
+st.write('### Step 1: Select number of handsearch / snowball iterations')
 
 iter_option =st.radio(
-    "Select number of snowball / handsearch iterations you would like:", (1,2))
+    "Select number of snowball / handsearch iterations", (1,2))
 
 if iter_option == 1: 
     iter_num = 1
@@ -30,32 +30,21 @@ elif iter_option ==2:
 st.write('---')
 
 st.write('### Step 2 : Input Starting Set of Articles')
-st.write('1. Provide a CSV file with your initial starting set of articles, with article DOI and article Title.')
-st.write('2. There must be 2 columns. Named seed_Id, and seed_Title (case-sensitive)')
+st.write('* Provide a CSV file with your initial starting set of articles, with article DOI and article Title.')
+st.write('* There must be 2 columns. Named seed_Id, and seed_Title (case-sensitive)')
 
 uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_input')
 
-st.write('3. We have prepared an example of required formatting as below.', seed_article_df_example)
+st.write('* We have prepared an example of required formatting as below.', seed_article_df_example)
 st.write('*For best results, choose articles that you would expect to be influential in your research question. For example, influential trials, systematic reviews and perspective pieces.*')
-
-
-st.write('Alternatively, you can try out our demo set of articles:')
+st.write('#### Step 2a. Alternatively, you can try out a demo set of articles:')
 
 if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
-    st.write('Using demo starting article set. Loading data in..')
-    if iter_num ==1: 
-        run_handsearch(seed_article_df_example)
-    elif iter_num == 2:
-        st.write('Conducting handsearch for 2 iterations. This may take a while.')
-        ## implement loop 
-    
+    st.write('Using demo starting article set. Conducting handsearch for',iter_num, 'iterations. This may take a while.')
+    run_handsearch(seed_article_df_example,iter_num)
 if uploaded_file is not None: 
-
-    if iter_num ==1: 
         seed_article_df = pd.read_csv(uploaded_file)
-        run_handsearch(seed_article_df)
-    elif iter_num == 2:
-        print('Conducting handsearch for 2 iterations. This may take a while.')
-        seed_article_df = pd.read_csv(uploaded_file) 
-        ## implement loop 
+        st.write('Conducting handsearch for',iter_num, 'iterations. This may take a while.')
+        run_handsearch(seed_article_df,iter_num)
+    
 
