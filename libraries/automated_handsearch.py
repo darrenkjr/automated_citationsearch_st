@@ -58,17 +58,7 @@ class automated_handsearch:
         #deduplicate
         results_no_dupe= seed_article_data.drop_duplicates(subset=['paper_Id'])
         print('Results after deduplication:', len(results_no_dupe))
-        #check for missing abstracts 
         return  results_no_dupe 
-        
-        # #check whether we have any missing abstracts, and fix if possible via contacitng OpenAlex
-        # if results_no_dupe['paper_Abstract'].isnull().values.any() == True: 
-        #     print('missing abstracts found from Semantic Scholar API. Attempting to fix via contacting OpenAlex.')
-        #     retrieved_abs = self.obtain_doi_missing_abs(results_no_dupe)
-        #     retrieved_abs_index_list = retrieved_abs.index.tolist()
-        #     retrieved_abs_abstract_list = retrieved_abs['abstract'].tolist()
-        #     results_no_dupe.loc[retrieved_abs_index_list,"paper_Abstract"] = retrieved_abs_abstract_list
-        # return  results_no_dupe 
 
     @limits(calls=100,period=1)
     def obtain_doi_missing_abs(self,df_missing_abs): 
@@ -96,17 +86,7 @@ class automated_handsearch:
         missing_abs_semantic_scholar_ID = missing_abs_semantic_scholar_ID.to_frame()
         missing_abs_semantic_scholar_ID = missing_abs_semantic_scholar_ID.assign(DOI=external_id['externalIds.DOI'].values)
         return missing_abs_semantic_scholar_ID
-        # print(missing_abs_semantic_scholar_ID.columns)
-        
-        
-        
-        # #retrieve abstracts from OpenAlex
-        # print('Contacting OpenAlex to retrieve abstracts for a total of ', len(missing_abs_semantic_scholar_ID), 'articles')
-        # missing_abs_semantic_scholar_ID['abstract']=missing_abs_semantic_scholar_ID['DOI'].apply(self.retrieve_openalex_abs)
-        # fixed_article_df = missing_abs_semantic_scholar_ID
-        # return fixed_article_df
-    
-                
+ 
     def retrieve_openalex_abs(self,DOI_list): 
         '''retrieve abstracts from OpenAlex'''
 
