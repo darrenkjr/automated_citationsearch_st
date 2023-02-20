@@ -19,13 +19,10 @@ st.write('If this tool is useful, we would love for you to cite us at [Link]. We
 st.write('---')
 st.write('### Step 1: Set number of handsearch / snowball iterations')
 
-iter_option =st.radio(
-    "Select number of snowball / handsearch iterations you would like:", (1,2))
+api =st.radio(
+    "Select your choice of database: Open Scholar or Semantic Scholar", ('Semantic Scholar','OpenAlex'))
 
-if iter_option == 1: 
-    iter_num = 1
-elif iter_option ==2: 
-    iter_num = 2
+
 
 st.write('---')
 
@@ -43,19 +40,20 @@ st.write('Alternatively, you can try out our demo set of articles:')
 
 if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
     st.write('Using demo starting article set. Loading data in..')
-    if iter_num ==1: 
-        run_handsearch(seed_article_df_example)
-    elif iter_num == 2:
-        st.write('Conducting handsearch for 2 iterations. This may take a while.')
-        ## implement loop 
+    run_handsearch(api,seed_article_df_example)
+    # if iter_num ==1: 
+    #     
+    # elif iter_num == 2:
+    #     st.write('Conducting handsearch for 2 iterations. This may take a while.')
+    #     ## implement loop 
     
 if uploaded_file is not None: 
 
-    if iter_num ==1: 
-        seed_article_df = pd.read_csv(uploaded_file)
-        run_handsearch(seed_article_df)
-    elif iter_num == 2:
-        print('Conducting handsearch for 2 iterations. This may take a while.')
-        seed_article_df = pd.read_csv(uploaded_file) 
+    # if iter_num ==1: 
+    seed_article_df = pd.read_csv(uploaded_file)
+    run_handsearch(api, seed_article_df)
+    # elif iter_num == 2:
+        # print('Conducting handsearch for 2 iterations. This may take a while.')
+        # seed_article_df = pd.read_csv(uploaded_file) 
         ## implement loop 
 
