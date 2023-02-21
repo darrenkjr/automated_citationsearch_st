@@ -14,18 +14,18 @@ class automated_handsearch:
         self.error_log = []
         self.api = api
 
-        if api == 'semanticscholar':
+        if api == 'Semantic Scholar':
             #get api key from streamlit secretes 
 
             semanticscholar_api_key =  st.secrets['semanticscholar_api_key']
             self.api_interface = semanticscholar_interface(semanticscholar_api_key)
 
-        if api == 'openalex':
-            self.api_interface = openalex_interface(a)
+        if api == 'OpenAlex':
+            self.api_interface = openalex_interface()
+        
 
     
     def run_citation_search(self, article_df): 
-
         references = asyncio.run(self.api_interface.retrieve_citations(article_df))
         citations = asyncio.run(self.api_interface.retrieve_references(article_df))
 
