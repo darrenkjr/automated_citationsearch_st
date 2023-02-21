@@ -36,12 +36,13 @@ st.write('*For best results, choose articles that you would expect to be influen
 
 uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_input')
 
+st.write('---')
 st.write('### Step 2b. Alternatively, you can try out our demo set of articles:')
 
 
 
 input_df = pd.DataFrame()
-if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
+if st.button('Use demo articles.', key='example_starting_article_input'): 
     st.write('Using demo starting article set. Loading data in..')
     input_df = seed_article_df_example
     run_handsearch(api,input_df)
