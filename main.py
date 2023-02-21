@@ -25,7 +25,7 @@ api =st.radio(
 
 st.write('---')
 
-st.write('### Step 2 : Input Starting Set of Articles (Pearls) / Seed Articles)')
+st.write('### Step 2a : Input Starting Set of Articles (Pearls) / Seed Articles)')
 st.write('1. Provide a CSV file with your initial starting set of articles, with article DOI and article Title.')
 st.write('2. There must be 2 columns. Named seed_Id, and seed_Title (case-sensitive)')
 
@@ -36,11 +36,13 @@ st.write('*For best results, choose articles that you would expect to be influen
 
 uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_input')
 
-st.write('## Alternatively, you can try out our demo set of articles:')
+st.write('### Step 2b. Alternatively, you can try out our demo set of articles:')
 
+input_df = pd.DataFrame()
 if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
     st.write('Using demo starting article set. Loading data in..')
-    run_handsearch(api,seed_article_df_example)
+    input_df = seed_article_df_example
+    run_handsearch(api,input_df)
     # if iter_num ==1: 
     #     
     # elif iter_num == 2:
@@ -50,10 +52,18 @@ if st.button('Use demonstration starting articles', key='example_starting_articl
 if uploaded_file is not None: 
 
     # if iter_num ==1: 
-    seed_article_df = pd.read_csv(uploaded_file)
-    run_handsearch(api, seed_article_df)
+    input_df = pd.read_csv(uploaded_file)
+    run_handsearch(api, input_df)
     # elif iter_num == 2:
         # print('Conducting handsearch for 2 iterations. This may take a while.')
         # seed_article_df = pd.read_csv(uploaded_file) 
         ## implement loop 
 
+st.write('---')
+
+st.write('### Step 3: Let the little robots do the work!')
+
+if input_df.empty == True: 
+    st.write('Waiting for user input')
+elif input_df.empty == False: 
+    st.write('User input loaded sucessfully. Proceeding.. ')
