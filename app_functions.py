@@ -10,8 +10,9 @@ def run_handsearch(api,seed_article_df):
     except: 
         st.write('Waiting on user input')
 
+    st.write('---')
     st.write("Intitial starting articles (pearls) loaded sucessfully. ")
-    st.write('### Step 2 : Conduct automated handsearching and deduplication based on your initial set of articles.')
+    st.write('### Step 3 : Conduct automated handsearching and deduplication based on your initial set of articles.')
     handsearch_instance = automated_handsearch(api)
 
     st.write('Now conducting automated handsearching. Give us a minute')

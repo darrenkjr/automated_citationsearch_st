@@ -39,9 +39,6 @@ uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_i
 st.write('### Step 2b. Alternatively, you can try out our demo set of articles:')
 
 
-st.write('---')
-
-st.write('### Step 3: Let the little robots do the work!')
 
 input_df = pd.DataFrame()
 if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
