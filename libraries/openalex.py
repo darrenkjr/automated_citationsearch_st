@@ -18,7 +18,7 @@ class openalex_interface:
     def __init__(self): 
 
         self.semaphore = asyncio.Semaphore(value=100)
-        self.api_limit = AsyncLimiter(5,1)
+        self.api_limit = AsyncLimiter(9,1)
         # self.article_df = article_df 
         self.pagination_limit = 200
         self.default_cursor = '*'
@@ -70,58 +70,10 @@ class openalex_interface:
                 openalex_api_endpoint = 'https://api.openalex.org/works?filter=openalex:{}&per-page={}&cursor={}'
                 openalex_api_path = openalex_api_endpoint.format(i,self.pagination_limit,self.default_cursor)
                 openalex_api_path_list.append(openalex_api_path)
+        print('wait')
         return openalex_api_path_list
 
 
-    async def retrieve_paperdetails(self,api_path_list): 
-        '''
-        Takes a list of OpenAlex API URLs and returns OpenAlex api response as a dataframe.
-        '''
-        # openalex_api_path_list = self.id_check(id)
-        openalex_results_full = pd.DataFrame() 
-        cursor = self.default_cursor
-        
-        for api_path in api_path_list:
-            async with aiohttp.ClientSession() as session:
-                await self.semaphore.acquire()
-                async with self.api_limit: 
-                    async with session.get(api_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
-                        if resp.status == 200: 
-                            content = await resp.json()
-                            openalex_results = pd.json_normalize(content, record_path = 'results', max_level=0)
-                            resp_meta = content.get('meta')
-
-                            retrieved_abstract_inverted = openalex_results['abstract_inverted_index']
-                            abstract_list = self.decode_abstract(retrieved_abstract_inverted)
-                            openalex_results.drop(columns=['abstract_inverted_index'], inplace=True)
-                            openalex_results['abstract'] = abstract_list
-                            openalex_results_full = pd.concat([openalex_results_full,openalex_results])
-                            #pagination handling 
-                            cursor = resp_meta['next_cursor']
-                            api_path = re.sub(r"(?<=cursor\=).*$",cursor, api_path)
-                            while cursor is not None and openalex_results.empty is False:
-                                print('Pagination detected, retrieving next page')
-                                async with self.api_limit:
-                                    api_path = re.sub(r"(?<=cursor\=).*$",cursor, api_path)
-                                    async with session.get(api_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
-                                        if resp.status == 200: 
-                                            content = await resp.json()
-                                            openalex_results = pd.json_normalize(content, record_path = 'results', max_level=0) 
-                                            resp_meta = content.get('meta')
-                                            
-                                            if not openalex_results.empty: 
-                                                retrieved_abstract_inverted = openalex_results['abstract_inverted_index']
-                                                abstract_list = self.decode_abstract(retrieved_abstract_inverted)
-                                                openalex_results.drop(columns=['abstract_inverted_index'], inplace=True)
-                                                openalex_results['abstract'] = abstract_list
-                                                openalex_results_full = pd.concat([openalex_results_full,openalex_results])
-                                            cursor = resp_meta['next_cursor']
-                                            
-                        else: 
-                            self.semaphore.release()
-                                
-        return openalex_results_full
-                    
                         
     async def retrieve_references(self, article_df): 
 
@@ -135,6 +87,8 @@ class openalex_interface:
         for i in id_chunks:
             openalex_api_path_list = self.generate_default_api_path(i)
             seed_detail_tasks.append(self.retrieve_paperdetails(openalex_api_path_list))
+
+        print('Retrieving paper details for seed articles')
         openalex_results = await asyncio.gather(*seed_detail_tasks)
         openalex_results_df = openalex_results[0]
 
@@ -145,65 +99,151 @@ class openalex_interface:
         for j in references_openalex_chunked:
             references_api_path_list = self.generate_default_api_path(j)
             backward_snowball_tasks.append(self.retrieve_paperdetails(references_api_path_list))
+        print('Retrieving paper details for references')
         references_full_detail_openalex = await asyncio.gather(*backward_snowball_tasks)
         final_reference_results = pd.concat(references_full_detail_openalex)
+        print(final_reference_results.shape)
         return final_reference_results
 
     async def retrieve_citations(self,article_df): 
 
-        '''retrieve citations from a given list of article IDs'''
+        '''retrieve citations from a given list of article IDs. OpenAlex structure is a bit different as citation urls are their own thing'''
 
         seed_detail_tasks = [] 
         citation_results_full = pd.DataFrame()
         id_list = article_df['seed_Id'].tolist()
         id_chunks = [self.chunk_id_list(id_list)]
+
         #obtain paper details for each seed id from openalex 
         for i in id_chunks:
+            print(i)
             openalex_api_path_list = self.generate_default_api_path(i)
             seed_detail_tasks.append(self.retrieve_paperdetails(openalex_api_path_list))
         openalex_results = await asyncio.gather(*seed_detail_tasks)
         openalex_results_df = openalex_results[0]
 
-        #retrieve citation url path for each seed id (openalex id)
+        #extract citation url path for each seed id (openalex id), and add to list
         citation_openalex_path = openalex_results_df[['id','cited_by_api_url']].copy()
+        citation_url_list = []
+        for i in citation_openalex_path['cited_by_api_url']:
+            path = i+('&per-page={}&cursor={}')
+            full_path = path.format(self.pagination_limit,self.default_cursor)
+            citation_url_list.append(full_path)
+        print(citation_url_list)
+        citation_tasks = []
+        for citation_url in citation_url_list:
+            citation_tasks.append(self.retrieve_paperdetails([citation_url]))
+        citation_results = await asyncio.gather(*citation_tasks)
+        citation_results_full = pd.concat(citation_results)
+        #print shape of all dataframes in dataframe 
+        for i in citation_results:
+            print(i.shape)
+        print(citation_results_full.shape)
+        return citation_results_full
+    
+    async def retrieve_paperdetails(self,api_path_list): 
 
+        ''' Takes a list of OpenAlex API URLs and returns OpenAlex api response as a dataframe.'''
+        openalex_results_full = pd.DataFrame() 
+        cursor = self.default_cursor
+        for api_path in api_path_list:
+            
+            async with aiohttp.ClientSession() as session:
+                await self.semaphore.acquire()
+                async with self.api_limit: 
+                    async with session.get(api_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
+                        if resp.status != 200: 
+                            print('Appropriate Response not received for path:', api_path)
+                            print('Response status:', resp.status)
+                            print('Response reason:', resp.reason)
 
-        async with aiohttp.ClientSession() as session:
-            for i in citation_openalex_path['cited_by_api_url']:
-                path = i+('&per-page={}&cursor={}')
-                full_path = path.format(self.pagination_limit,self.default_cursor)
-                async with self.api_limit:
-                    async with session.get(full_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
-                        if resp.status == 200: 
+                        elif resp.status == 200: 
+                            print('Response received for path:', api_path)
                             content = await resp.json()
-                            citation_results = pd.json_normalize(content, record_path = 'results', max_level=0)
+                            openalex_results = pd.json_normalize(content, record_path = 'results', max_level=0)
+                            
                             resp_meta = content.get('meta')
-                            citation_results_full = pd.concat([citation_results_full,citation_results])
+
+                            retrieved_abstract_inverted = openalex_results['abstract_inverted_index']
+                            abstract_list = self.decode_abstract(retrieved_abstract_inverted)
+                            openalex_results.drop(columns=['abstract_inverted_index'], inplace=True)
+                            openalex_results['abstract'] = abstract_list
+                            openalex_results_full = pd.concat([openalex_results_full,openalex_results])
+                            print('Shape of results (after first page):', openalex_results_full.shape)
                             #pagination handling 
-                            cursor = resp_meta['next_cursor']
-                            full_path = re.sub(r"(?<=cursor\=).*$",cursor,full_path)
-                            while cursor is not None and citation_results.empty is False:
+                            
+                            # api_path = re.sub(r"(?<=cursor\=).*$",cursor, api_path)
+                            while cursor is not None:
                                 print('Pagination detected, retrieving next page')
                                 async with self.api_limit:
-                                    full_path = re.sub(r"(?<=cursor\=).*$",cursor,full_path)
-                                    print(full_path)
-                                    async with session.get(full_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
-                                        if resp.status == 200: 
-                                            content = await resp.json()
-                                            citation_results = pd.json_normalize(content, record_path = 'results', max_level=0) 
-                                            resp_meta = content.get('meta')
-                                            
-                                            if not citation_results.empty: 
-                                                retrieved_abstract_inverted = citation_results['abstract_inverted_index']
-                                                abstract_list = self.decode_abstract(retrieved_abstract_inverted)
-                                                citation_results.drop(columns=['abstract_inverted_index'], inplace=True)
-                                                citation_results['abstract'] = abstract_list
-                                                citation_results_full = pd.concat([citation_results_full,citation_results])
-                                            cursor = resp_meta['next_cursor']
-                                            print(resp_meta)
+                                    cursor = resp_meta['next_cursor']
+                                    api_path = re.sub(r"(?<=cursor\=).*$",cursor, api_path)
+                                    print('Pagination API path:', api_path)
+                                    async with session.get(api_path, headers={"mailto":"darren.rajit1@monash.edu"}) as pagination_resp: 
+                                        if pagination_resp.status == 200: 
+                                            print('Pagination Response received')
+                                            pagination_content = await pagination_resp.json()
 
-        final_citation_results = citation_results_full 
-        return final_citation_results
+                                            openalex_paginated_results = pd.json_normalize(pagination_content, record_path = 'results', max_level=0)
+                                            print('Checking if pagination results are empty:', openalex_paginated_results.empty)
+                                            if openalex_paginated_results.empty == True:
+                                                print('Pagination results are empty, breaking loop')
+                                                cursor = None
+                                            elif openalex_paginated_results.empty == False:
+                                                print('Pagination results are not empty, continuing loop')
+                                                resp_meta = pagination_content.get('meta')
+                                                retrieved_abstract_inverted = openalex_paginated_results['abstract_inverted_index']
+                                                abstract_list = self.decode_abstract(retrieved_abstract_inverted)
+                                                openalex_paginated_results.drop(columns=['abstract_inverted_index'], inplace=True)
+                                                openalex_paginated_results['abstract'] = abstract_list
+                                                openalex_results_full = pd.concat([openalex_results_full,openalex_paginated_results])
+                                                print('Shape of results being added with pagination:', openalex_paginated_results.shape)
+                                                print('Shape of consolidated results (afer pagination):', openalex_results_full.shape)
+                                            
+                                                cursor = resp_meta['next_cursor']
+
+                                            
+                        else: 
+                            self.semaphore.release()
+                                
+        return openalex_results_full
+
+        
+        
+        
+
+
+        # async with aiohttp.ClientSession() as session:
+        #         async with self.api_limit:
+        #             async with session.get(full_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
+        #                 if resp.status == 200: 
+        #                     content = await resp.json()
+        #                     citation_results = pd.json_normalize(content, record_path = 'results', max_level=0)
+        #                     resp_meta = content.get('meta')
+        #                     citation_results_full = pd.concat([citation_results_full,citation_results])
+        #                     #pagination handling 
+        #                     cursor = resp_meta['next_cursor']
+        #                     full_path = re.sub(r"(?<=cursor\=).*$",cursor,full_path)
+        #                     while cursor is not None and citation_results.empty is False:
+        #                         print('Pagination detected, retrieving next page')
+        #                         async with self.api_limit:
+        #                             full_path = re.sub(r"(?<=cursor\=).*$",cursor,full_path)
+        #                             print(full_path)
+        #                             async with session.get(full_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
+        #                                 if resp.status == 200: 
+        #                                     content = await resp.json()
+        #                                     citation_results = pd.json_normalize(content, record_path = 'results', max_level=0) 
+        #                                     resp_meta = content.get('meta')
+        #                                     retrieved_abstract_inverted = citation_results['abstract_inverted_index']
+        #                                     abstract_list = self.decode_abstract(retrieved_abstract_inverted)
+        #                                     citation_results.drop(columns=['abstract_inverted_index'], inplace=True)
+        #                                     citation_results['abstract'] = abstract_list
+        #                                     citation_results_full = pd.concat([citation_results_full,citation_results])
+        #                                     cursor = resp_meta['next_cursor']
+        #                                     print(resp_meta)
+
+        # final_citation_results = citation_results_full 
+        # return final_citation_results
 
     def to_ris(self, df):
 

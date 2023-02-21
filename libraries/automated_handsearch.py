@@ -3,24 +3,25 @@ from json.decoder import JSONDecodeError
 import pandas as pd
 import asyncio
 import os 
-from dotenv import load_dotenv
+import streamlit as st 
 from libraries.openalex import openalex_interface
 from libraries.semanticscholar import semanticscholar_interface
-import streamlit as st
 
 class automated_handsearch: 
 
     def __init__(self,api): 
-        print(api)
+
         self.error_log = []
-        if api == "Semantic Scholar":
-            
-            semanticscholar_api_key =  st.secrets["semantic_scholar_api_key"]
-            print(semanticscholar_api_key)
+        self.api = api
+
+        if api == 'semanticscholar':
+            #get api key from streamlit secretes 
+
+            semanticscholar_api_key =  st.secrets['semanticscholar_api_key']
             self.api_interface = semanticscholar_interface(semanticscholar_api_key)
 
-        if api == "OpenAlex":
-            self.api_interface = openalex_interface()
+        if api == 'openalex':
+            self.api_interface = openalex_interface(a)
 
     
     def run_citation_search(self, article_df): 

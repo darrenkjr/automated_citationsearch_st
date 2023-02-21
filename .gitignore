@@ -2,3 +2,9 @@ __pycache__/
 
 #vscode 
 .vscode/
+
+#.env
+.env
+
+#streamlit config toml file 
+.streamlit/secrets.toml
