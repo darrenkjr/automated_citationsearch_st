@@ -103,6 +103,8 @@ class openalex_interface:
         references_full_detail_openalex = await asyncio.gather(*backward_snowball_tasks)
         final_reference_results = pd.concat(references_full_detail_openalex)
         print(final_reference_results.shape)
+        #change column names from id to paper_Id to match semantic scholar interface 
+        final_reference_results.rename(columns={'id':'paper_Id'}, inplace=True)
         return final_reference_results
 
     async def retrieve_citations(self,article_df): 
@@ -139,6 +141,8 @@ class openalex_interface:
         for i in citation_results:
             print(i.shape)
         print(citation_results_full.shape)
+        #change column names from id to paper_Id to match semantic scholar interface 
+        citation_results_full.rename(columns={'id':'paper_Id'}, inplace=True)
         return citation_results_full
     
     async def retrieve_paperdetails(self,api_path_list): 
@@ -245,35 +249,42 @@ class openalex_interface:
         # final_citation_results = citation_results_full 
         # return final_citation_results
 
-    def to_ris(self, df):
+    def to_ris(self, df, path):
 
         result_df_openalex = df 
-        entries = result_df_openalex[['id', 'doi', 'title', 'abstract', 'publication_year', 'publication_date','authorships','host_venue', 'type']].copy()
+        entries = result_df_openalex[['paper_Id', 'doi', 'title', 'abstract', 'publication_year', 'publication_date','authorships','host_venue', 'type']].copy()
         entries['database_provider'] = 'OpenAlex'
         entries.rename(columns = {'type' : 'type_of_reference'
                                 ,'publication_year' : 'year'
                                 ,'publication_date' : 'date'
                                 ,'authorships' : 'authorship_data'
                                 ,'host_venue' : 'journal_name'
+                                ,'paper_Id' : 'id'
                                 }, inplace = True)
 
         #unpacking dictionary of authors into a list of authors
-        author_data = pd.json_normalize(entries['authorship_data'].apply(lambda x : eval(x)))
+        print('Writing RIS File..')
+
+        author_data = pd.json_normalize(entries['authorship_data'].apply(lambda x : eval(str(x))))
         author_data = author_data.applymap(lambda x: {} if pd.isnull(x) else x)
-
-
         colname_range = range(1, len(list(author_data))+1)
         new_cols = ['A' + str(i) for i in colname_range]
         author_data.columns = new_cols
 
         author_names = author_data.apply(lambda x : x.str.get('author.display_name'), axis = 1)
+        print(author_names)
         author_names = author_names.apply(lambda x : list(x.tolist()), axis = 1)
-        author_names = author_names.apply( lambda x : list(filter(lambda item: item is not None, x)))
+        print(author_names)
+        author_names = author_names.apply(lambda x : list(filter(lambda item: item is not None, x)))
+        print(author_names)
+        
         author_names.name = 'authors'
+        # entries_flat_authors = pd.concat([entries, author_names], axis = 1).reset_index(drop = True)
+        entries_flat_authors = entries.join(author_names).reset_index(drop = True)
+        entries_flat_authors = entries_flat_authors.drop(['authorship_data'], axis = 1)
+        entries_ris = entries_flat_authors.to_dict('records')
 
-        entries = pd.concat([entries, author_names], axis = 1)
-        entries_ris = entries.to_dict('records')
-        ris_export_path = 'result.ris'
-        with open (ris_export_path,'w', encoding = 'utf-8') as f:
+        
+        with open (path,'w', encoding = 'utf-8') as f:
             rispy.dump(entries_ris,f)
 

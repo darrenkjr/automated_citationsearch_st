@@ -23,14 +23,13 @@ class automated_handsearch:
         if api == 'OpenAlex':
             self.api_interface = openalex_interface()
         
-
-    
     def run_citation_search(self, article_df): 
         references = asyncio.run(self.api_interface.retrieve_citations(article_df))
         citations = asyncio.run(self.api_interface.retrieve_references(article_df))
 
         #combine api results
         results_full = pd.concat([references,citations],ignore_index=True)
+       
         return results_full 
 
     def to_ris(self,df): 
