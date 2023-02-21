@@ -28,7 +28,7 @@ def run_handsearch(api,seed_article_df):
     st.write('Results: ', result_dedupe)
 
 
-    st.write('Metadata retrieval done 🎉. Download ready as CSV or RIS file. For reference the encoding is in UTF-8. ')
+    st.write('Metadata retrieval done 🎉. Download ready as CSV RIS file. For reference the encoding is in UTF-8. RIS File Support is comming imminently.')
     
     st.download_button(
         label = 'Download results as CSV file',
