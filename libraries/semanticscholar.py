@@ -297,7 +297,7 @@ class semanticscholar_interface:
         }, inplace=True)
 
         #unpack author column to get list of authors (nested dictionary)
-        author_data = pd.json_normalize(entries['authors'].apply(lambda x : eval(x)))
+        author_data = pd.json_normalize(entries['authors'].apply(lambda x : eval(str(x))))
         author_data = author_data.applymap(lambda x: {} if pd.isnull(x) else x)
         colname_range = range(1, len(list(author_data))+1)
         new_cols = ['A' + str(i) for i in colname_range]
