@@ -13,7 +13,7 @@ st.title('Automated Handsearch - Proof of Concept Demo - Part of the Automated E
 st.write('Hi There! This is a web app (note: Highly Experimental!) that conducts automated handsearching as part of evidence retrieval in evidence synthesis tasks. For example, for systematic reviews, evidence based guideline development etc.'
 )
 st.write('Handsearching involves looking through the reference section of an article (Backward citation) and also all papers that have cited the starting article (Forward citation) as a means to obtain potentiallly relevant articles for a given research question or evidence synthesis task. This is also known as snowballing.')
-st.write('Under the hood we are querying the Semantic Scholar Application Programming Interface, which holds a database of over 200 million papers, from a range of sources, including PubMed, Preprint servers, and Microsoft Academic Graph')
+st.write('Under the hood we are querying the Semantic Scholar Application Programming Interface, which holds a database of over 200 million papers, from a range of sources, including PubMed, Preprint servers, and Microsoft Academic Graph. We recently added support for OpenAlex as well which has comparable coverage.')
 st.write('This is part of a doctoral project investigating how to incorporate AI and automation into evidence synthesis, and work is underway in emperically investigating best practice in utilising automated citation searching during evidence retrieval.')
 st.write('If this tool is useful, we would love for you to cite us at [Link]. Feedback is always welcome, alongside bug / issue reports. Please send these to darren.rajit1@monash.edu')
 st.write('---')
