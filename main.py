@@ -40,7 +40,6 @@ st.write('---')
 st.write('### Step 2b. Alternatively, you can try out our demo set of articles:')
 
 
-
 input_df = pd.DataFrame()
 if st.button('Use demo articles.', key='example_starting_article_input'): 
     st.write('Using demo starting article set. Loading data in..')
