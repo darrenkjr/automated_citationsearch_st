@@ -38,6 +38,11 @@ uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_i
 
 st.write('### Step 2b. Alternatively, you can try out our demo set of articles:')
 
+
+st.write('---')
+
+st.write('### Step 3: Let the little robots do the work!')
+
 input_df = pd.DataFrame()
 if st.button('Use demonstration starting articles', key='example_starting_article_input'): 
     st.write('Using demo starting article set. Loading data in..')
@@ -59,11 +64,3 @@ if uploaded_file is not None:
         # seed_article_df = pd.read_csv(uploaded_file) 
         ## implement loop 
 
-st.write('---')
-
-st.write('### Step 3: Let the little robots do the work!')
-
-if input_df.empty == True: 
-    st.write('Waiting for user input')
-elif input_df.empty == False: 
-    st.write('User input loaded sucessfully. Proceeding.. ')
