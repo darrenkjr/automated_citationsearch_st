@@ -20,7 +20,7 @@ st.write('---')
 st.write('### Step 1: Select your database of choice')
 
 api =st.radio(
-    "Choice of database:", ('Semantic Scholar','OpenAlex - New!'))
+    "Choice of database:", ('Semantic Scholar','OpenAlex'))
 
 
 st.write('---')

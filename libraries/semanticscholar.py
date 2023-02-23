@@ -12,7 +12,7 @@ class semanticscholar_interface:
 
     def __init__(self,api_key): 
 
-        # self.semaphore = asyncio.Semaphore(value=100)
+        self.semaphore = asyncio.Semaphore(value=100)
         self.api_limit = AsyncLimiter(25,1)
         self.session_timeout = aiohttp.ClientTimeout(total=600)
         self.pagination_limit = 500

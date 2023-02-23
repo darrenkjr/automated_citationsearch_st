@@ -5,17 +5,21 @@ import streamlit as st
 
 def run_handsearch(api,seed_article_df): 
 
+    st.write('---')
+    
+    st.write('### Step 3 : Conduct automated handsearching and deduplication based on your initial set of articles.')
+
     try: 
+        st.write("Attempting to read input..")
         st.dataframe(seed_article_df)
+        st.write("Initial starting articles (pearls) loaded sucessfully. ")
+        st.write('Now conducting automated handsearching. Give us a minute')
     except: 
         st.write('Waiting on user input')
 
-    st.write('---')
-    st.write("Intitial starting articles (pearls) loaded sucessfully. ")
-    st.write('### Step 3 : Conduct automated handsearching and deduplication based on your initial set of articles.')
+    
     handsearch_instance = automated_handsearch(api)
 
-    st.write('Now conducting automated handsearching. Give us a minute')
     #number of iterations 
     iter_num = 1
     for i in range(iter_num): 
