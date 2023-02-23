@@ -12,7 +12,7 @@ class semanticscholar_interface:
 
     def __init__(self,api_key): 
 
-        self.semaphore = asyncio.Semaphore(value=100)
+        # self.semaphore = asyncio.Semaphore(value=100)
         self.api_limit = AsyncLimiter(25,1)
         self.session_timeout = aiohttp.ClientTimeout(total=600)
         self.pagination_limit = 500
@@ -43,14 +43,14 @@ class semanticscholar_interface:
         ss_results_full = pd.DataFrame()
 
         async with aiohttp.ClientSession(timeout=self.session_timeout) as session: 
-            await self.semaphore.acquire()
+            # await self.semaphore.acquire()
             async with self.api_limit: 
                 async with session.get(api_path, headers = {'x-api-key':self.api_key}, ssl=False) as resp: 
                     if resp.status != 200:
                         print('Response status: ', resp.status, 'for the following path: ', api_path)
                         print('Error: ', await resp.text())
                         self.error_log.append(await resp.text())
-                        self.semaphore.release()
+                        # self.semaphore.release()
                         return None
                     
                     #if response is successful, retrieve data, normalize, conduct pagination checks, and append to dataframe 
@@ -115,7 +115,7 @@ class semanticscholar_interface:
                             #pass an empty dataframe to the results_full dataframe and continue 
                             ss_results = pd.DataFrame()
                             ss_results_full = pd.concat([ss_results_full,ss_results],ignore_index=True)
-                            self.semaphore.release()
+                            # self.semaphore.release()
                             return ss_results_full
 
                        
