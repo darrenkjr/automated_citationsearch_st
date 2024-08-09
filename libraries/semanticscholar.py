@@ -20,7 +20,7 @@ class semanticscholar_interface:
         self.api_key = api_key
         self.error_log = []
         self.fields = 'title,abstract,year,citationCount,fieldsOfStudy,authors,venue,publicationTypes,publicationDate,externalIds'
-        self.api_endpoint = 'https://partner.semanticscholar.org/graph/v1/paper/{id}/{citation_direction}?offset={offset}&limit={limit}&fields={fields}'
+        self.api_endpoint = 'https://api.semanticscholar.org/graph/v1/paper/{id}/{citation_direction}?offset={offset}&limit={limit}&fields={fields}'
 
         if platform.system()=='Windows':
                 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
