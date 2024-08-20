@@ -20,6 +20,8 @@ st.write('This is part of a doctoral project investigating how to incorporate AI
 
 st.write('If you find this tool useful, we would love for you to cite us at: https://doi.org/10.26180/26785558.v2. Feedback is always welcome, alongside bug / issue reports. Please send these to darren.rajit1@monash.edu')
 
+# display warning header for rate limits and potential instability 
+st.warning('Please note that there are rate limits on the APIs we are using. If you encounter any issues, please try again later.')
 st.write('---')
 st.write('### Step 1: Select your database of choice')
 
