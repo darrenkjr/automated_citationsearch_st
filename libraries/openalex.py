@@ -5,6 +5,7 @@ from aiolimiter import AsyncLimiter
 import platform 
 import re 
 import rispy 
+import streamlit as st
 #test openalex API functionality 
 
 
@@ -22,6 +23,7 @@ class openalex_interface:
         # self.article_df = article_df 
         self.pagination_limit = 200
         self.default_cursor = '*'
+        self.batch_size = 10
 
         if platform.system()=='Windows':
                 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -75,20 +77,30 @@ class openalex_interface:
 
 
                         
-    async def retrieve_references(self, article_df): 
+    async def retrieve_references(self, article_df, progress_bar): 
 
         '''retrieves references from a given list of article IDs'''
         seed_detail_tasks = [] 
         backward_snowball_tasks = []
         id_list = article_df['seed_Id'].tolist()
+        total_tasks = len(id_list)
         #divide entire ID list into list containing segments that are 50 entries long (list of lists) 
         id_chunks = [self.chunk_id_list(id_list)]
+        completed_tasks = 0 
         #obtain paper details for each individual seed id chunk (50 seed ids at a time)
+        async def fetch_with_progress(url): 
+            nonlocal completed_tasks 
+            result = await self.retrieve_paperdetails([url])
+            completed_tasks += 1
+            progress = completed_tasks / total_tasks
+            progress_bar.progress(progress, text=f"Retrieving references: {completed_tasks}/{total_tasks} ({progress:.1%})")
+            return result
+
         for i in id_chunks:
             openalex_api_path_list = self.generate_default_api_path(i)
             seed_detail_tasks.append(self.retrieve_paperdetails(openalex_api_path_list))
 
-        print('Retrieving paper details for seed articles')
+        st.write('Retrieving paper details for seed articles and extract references')
         openalex_results = await asyncio.gather(*seed_detail_tasks)
         openalex_results_df = openalex_results[0]
 
@@ -96,18 +108,24 @@ class openalex_interface:
         references_openalex = openalex_results_df[['id','referenced_works']].copy()
         #for each batch of openalex ids, perform backwards snowballing 
         references_openalex_chunked = references_openalex.apply(lambda x: self.chunk_id_list(x['referenced_works']), axis=1)
+
+        st.write('Retrieving paper details for references')
+        references_results = [] 
         for j in references_openalex_chunked:
             references_api_path_list = self.generate_default_api_path(j)
-            backward_snowball_tasks.append(self.retrieve_paperdetails(references_api_path_list))
-        print('Retrieving paper details for references')
-        references_full_detail_openalex = await asyncio.gather(*backward_snowball_tasks)
-        final_reference_results = pd.concat(references_full_detail_openalex)
-        print(final_reference_results.shape)
+            for i in range(0, len(references_api_path_list), self.batch_size):
+                batch = references_api_path_list[i:i+self.batch_size]
+                batch_tasks = [fetch_with_progress(url) for url in batch]
+                batch_results = await asyncio.gather(*batch_tasks)
+                references_results.extend([r for r in batch_results if r is not None])
+
+
+        final_reference_results = pd.concat(references_results)
         #change column names from id to paper_Id to match semantic scholar interface 
         final_reference_results.rename(columns={'id':'paper_Id'}, inplace=True)
         return final_reference_results
 
-    async def retrieve_citations(self,article_df): 
+    async def retrieve_citations(self,article_df, progress_bar): 
 
         '''retrieve citations from a given list of article IDs. OpenAlex structure is a bit different as citation urls are their own thing'''
 
@@ -115,15 +133,27 @@ class openalex_interface:
         citation_results_full = pd.DataFrame()
         id_list = article_df['seed_Id'].tolist()
         id_chunks = [self.chunk_id_list(id_list)]
+        completed_tasks = 0
+        total_tasks = len(id_chunks)
 
         #obtain paper details for each seed id from openalex 
-        for i in id_chunks:
-            print(i)
+        async def fetch_with_progress(url): 
+            nonlocal completed_tasks 
+            result = await self.retrieve_paperdetails([url])
+            completed_tasks += 1
+            progress = completed_tasks / total_tasks
+            progress_bar.progress(progress, text=f"Retrieving citations: {completed_tasks}/{total_tasks} ({progress:.1%})")
+            return result
+
+        for i in id_chunks: 
             openalex_api_path_list = self.generate_default_api_path(i)
             seed_detail_tasks.append(self.retrieve_paperdetails(openalex_api_path_list))
+
+        st.write('Retrieving paper details for seed articles initially')
         openalex_results = await asyncio.gather(*seed_detail_tasks)
         openalex_results_df = openalex_results[0]
 
+        
         #extract citation url path for each seed id (openalex id), and add to list
         citation_openalex_path = openalex_results_df[['id','cited_by_api_url']].copy()
         citation_url_list = []
@@ -131,16 +161,17 @@ class openalex_interface:
             path = i+('&per-page={}&cursor={}')
             full_path = path.format(self.pagination_limit,self.default_cursor)
             citation_url_list.append(full_path)
-        print(citation_url_list)
+
+        st.write('Retrieving citations for seed articles')
         citation_tasks = []
-        for citation_url in citation_url_list:
-            citation_tasks.append(self.retrieve_paperdetails([citation_url]))
-        citation_results = await asyncio.gather(*citation_tasks)
+        citation_results = []
+        for i in range(0, len(citation_url_list), self.batch_size):
+            batch = citation_url_list[i:i+self.batch_size]
+            batch_tasks = [fetch_with_progress(url) for url in batch]
+            batch_results = await asyncio.gather(*batch_tasks)
+            citation_results.extend([r for r in batch_results if r is not None])
+            
         citation_results_full = pd.concat(citation_results)
-        #print shape of all dataframes in dataframe 
-        for i in citation_results:
-            print(i.shape)
-        print(citation_results_full.shape)
         #change column names from id to paper_Id to match semantic scholar interface 
         citation_results_full.rename(columns={'id':'paper_Id'}, inplace=True)
         return citation_results_full
@@ -212,42 +243,6 @@ class openalex_interface:
                                 
         return openalex_results_full
 
-        
-        
-        
-
-
-        # async with aiohttp.ClientSession() as session:
-        #         async with self.api_limit:
-        #             async with session.get(full_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
-        #                 if resp.status == 200: 
-        #                     content = await resp.json()
-        #                     citation_results = pd.json_normalize(content, record_path = 'results', max_level=0)
-        #                     resp_meta = content.get('meta')
-        #                     citation_results_full = pd.concat([citation_results_full,citation_results])
-        #                     #pagination handling 
-        #                     cursor = resp_meta['next_cursor']
-        #                     full_path = re.sub(r"(?<=cursor\=).*$",cursor,full_path)
-        #                     while cursor is not None and citation_results.empty is False:
-        #                         print('Pagination detected, retrieving next page')
-        #                         async with self.api_limit:
-        #                             full_path = re.sub(r"(?<=cursor\=).*$",cursor,full_path)
-        #                             print(full_path)
-        #                             async with session.get(full_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
-        #                                 if resp.status == 200: 
-        #                                     content = await resp.json()
-        #                                     citation_results = pd.json_normalize(content, record_path = 'results', max_level=0) 
-        #                                     resp_meta = content.get('meta')
-        #                                     retrieved_abstract_inverted = citation_results['abstract_inverted_index']
-        #                                     abstract_list = self.decode_abstract(retrieved_abstract_inverted)
-        #                                     citation_results.drop(columns=['abstract_inverted_index'], inplace=True)
-        #                                     citation_results['abstract'] = abstract_list
-        #                                     citation_results_full = pd.concat([citation_results_full,citation_results])
-        #                                     cursor = resp_meta['next_cursor']
-        #                                     print(resp_meta)
-
-        # final_citation_results = citation_results_full 
-        # return final_citation_results
 
     def to_ris(self, df, path):
 

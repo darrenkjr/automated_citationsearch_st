@@ -23,7 +23,8 @@ class automated_handsearch:
         if api == 'OpenAlex':
             self.api_interface = openalex_interface()
         
-    def run_citation_search(self, article_df): 
+    async def run_citation_search(self, article_df): 
+
         references = asyncio.run(self.api_interface.retrieve_citations(article_df))
         citations = asyncio.run(self.api_interface.retrieve_references(article_df))
 
@@ -36,6 +37,12 @@ class automated_handsearch:
         #convert to ris format 
         ris = asyncio.run(self.api_interface.to_ris(df))
         return ris
+
+    async def retrieve_citations(self, article_df, progress_bar):
+        return await self.api_interface.retrieve_citations(article_df, progress_bar)
+
+    async def retrieve_references(self, article_df, progress_bar):
+        return await self.api_interface.retrieve_references(article_df, progress_bar)
 
 
     

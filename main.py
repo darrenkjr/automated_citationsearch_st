@@ -3,6 +3,7 @@ import re
 from demo.demo_module import demo_article
 from app_functions import run_handsearch
 import streamlit as st
+import asyncio
 
 #defining streamlit parameters
 demo_cls = demo_article()
@@ -44,7 +45,16 @@ input_df = pd.DataFrame()
 if st.button('Use demo articles.', key='example_starting_article_input'): 
     st.write('Using demo starting article set. Loading data in..')
     input_df = seed_article_df_example
-    run_handsearch(api,input_df)
+    try: 
+        st.dataframe(input_df)
+    except: 
+        st.write('Error loading demo articles. Please try again.')
+
+
+    
+    results = asyncio.run(run_handsearch(api, input_df))
+    st.write("Results:")
+    st.dataframe(results)
     # if iter_num ==1: 
     #     
     # elif iter_num == 2:
@@ -52,10 +62,17 @@ if st.button('Use demo articles.', key='example_starting_article_input'):
     #     ## implement loop 
     
 if uploaded_file is not None: 
-
-    # if iter_num ==1: 
+    # iter_num ==1: 
     input_df = pd.read_csv(uploaded_file)
-    run_handsearch(api, input_df)
+    st.write('Attempting to read input..')
+    try: 
+        st.dataframe(input_df)
+    except: 
+        st.write('Error loading uploaded file. Please try again.')
+
+    results = asyncio.run(run_handsearch(api, input_df))
+    st.write("Results:")
+    st.dataframe(results) 
     # elif iter_num == 2:
         # print('Conducting handsearch for 2 iterations. This may take a while.')
         # seed_article_df = pd.read_csv(uploaded_file) 

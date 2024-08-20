@@ -5,6 +5,8 @@ from aiolimiter import AsyncLimiter
 import platform 
 import rispy 
 import re
+import random 
+import streamlit as st
 #test semantic scholar API functionality
 # 
 
@@ -13,14 +15,17 @@ class semanticscholar_interface:
     def __init__(self,api_key): 
 
         # self.semaphore = asyncio.Semaphore(value=100)
-        self.api_limit = AsyncLimiter(25,1)
+        self.api_limit = AsyncLimiter(3,1)
+        self.batch_size = 3
         self.session_timeout = aiohttp.ClientTimeout(total=600)
         self.pagination_limit = 500
         self.default_pagination_offset = 0
         self.api_key = api_key
+        self.max_retries = 3
+        self.base_delay = 1
         self.error_log = []
         self.fields = 'title,abstract,year,citationCount,fieldsOfStudy,authors,venue,publicationTypes,publicationDate,externalIds'
-        self.api_endpoint = 'https://partner.semanticscholar.org/graph/v1/paper/{id}/{citation_direction}?offset={offset}&limit={limit}&fields={fields}'
+        self.api_endpoint = 'https://api.semanticscholar.org/graph/v1/paper/{id}/{citation_direction}?offset={offset}&limit={limit}&fields={fields}'
 
         if platform.system()=='Windows':
                 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -29,7 +34,7 @@ class semanticscholar_interface:
         ss_path_list = []
         for i in id: 
             if i is None or not i: 
-                return None 
+                continue
             else: 
                 api_path = self.api_endpoint.format(id =i, citation_direction = direction, offset=self.default_pagination_offset,limit =self.pagination_limit, fields = self.fields)
                 ss_path_list.append(api_path)
@@ -39,113 +44,182 @@ class semanticscholar_interface:
         '''
         Takes a Semantic Scholar API URL and returns Semantic Scholar response as a dataframe 
         '''
-
+        
         ss_results_full = pd.DataFrame()
+        for attempt in range(self.max_retries): 
+            try:
+                async with aiohttp.ClientSession(timeout=self.session_timeout) as session: 
+                    # await self.semaphore.acquire()
+                    async with self.api_limit: 
+                        async with session.get(api_path, headers = {'x-api-key':self.api_key}, ssl=False) as resp: 
+                            if resp.status != 200:
+                                if resp.status == 429:  # Too Many Requests
+                                    wait_time = 2 ** attempt  # Exponential backoff
+                                    print(f"Rate limit hit. Waiting {wait_time} seconds before retry.")
+                                    await asyncio.sleep(wait_time)
+                                    continue
+                                else: 
+                                    print('Response status: ', resp.status, 'for the following path: ', api_path)
+                                    print('Error: ', await resp.text())
+                                    self.error_log.append(await resp.text())
+                                    # self.semaphore.release()
+                                    return None
+                        
+                            #if response is successful, retrieve data, normalize, conduct pagination checks, and append to dataframe 
+                            else: 
+                                ss_results_json = await resp.json()
+                                try: 
+                                    ss_results = pd.json_normalize(ss_results_json,record_path=['data'])
+                                    if self.direction == 'citations':
+                                        ss_results.columns = ss_results.columns.str.replace('citingPaper.', '')
+                                    if self.direction == 'references':
+                                        ss_results.columns = ss_results.columns.str.replace('citedPaper.', '')
+                                    ss_results.columns = ss_results.columns.str.replace('citedPaper.', '')
+                                    ss_results.columns = ss_results.columns.str.replace('externalIds.', '')
+                                    ss_results.rename(columns = {
+                                        'paperId' : 'paper_Id', 'title':'paper_Title','abstract':'paper_Abstract','year':'paper_Year','citationCount':'paper_citation_count','fieldsOfStudy':'paper_field','authors':'paper_author'
+                                    }, inplace=True)
+                                    ss_results_full = pd.concat([ss_results_full,ss_results],ignore_index=True)
 
-        async with aiohttp.ClientSession(timeout=self.session_timeout) as session: 
-            # await self.semaphore.acquire()
-            async with self.api_limit: 
-                async with session.get(api_path, headers = {'x-api-key':self.api_key}, ssl=False) as resp: 
-                    if resp.status != 200:
-                        print('Response status: ', resp.status, 'for the following path: ', api_path)
-                        print('Error: ', await resp.text())
-                        self.error_log.append(await resp.text())
-                        # self.semaphore.release()
-                        return None
-                    
-                    #if response is successful, retrieve data, normalize, conduct pagination checks, and append to dataframe 
-                    else: 
-                        ss_results_json = await resp.json()
-                        try: 
-                            ss_results = pd.json_normalize(ss_results_json,record_path=['data'])
-                            if self.direction == 'citations':
-                                ss_results.columns = ss_results.columns.str.replace('citingPaper.', '')
-                            if self.direction == 'references':
-                                ss_results.columns = ss_results.columns.str.replace('citedPaper.', '')
-                            ss_results.columns = ss_results.columns.str.replace('citedPaper.', '')
-                            ss_results.columns = ss_results.columns.str.replace('externalIds.', '')
-                            ss_results.rename(columns = {
-                                'paperId' : 'paper_Id', 'title':'paper_Title','abstract':'paper_Abstract','year':'paper_Year','citationCount':'paper_citation_count','fieldsOfStudy':'paper_field','authors':'paper_author'
-                            }, inplace=True)
-                            ss_results_full = pd.concat([ss_results_full,ss_results],ignore_index=True)
-
-                             #check if pagination is required
-                            pagination_check = len(ss_results)
-                            print('Pagination check: ', pagination_check)
-                            if pagination_check >= self.pagination_limit: 
-                                print('Pagination detected for following path: ', api_path)
-                                pagination_offset = self.default_pagination_offset
-                                while pagination_check >= self.pagination_limit: 
-                                    pagination_offset += self.pagination_limit 
-                                    print('Pagination offset: ', pagination_offset)
-                                    #regex substitution to update offset value in API path
-                                    api_path = re.sub(r"(?<=offset=)(.*)(?=&limit)",str(pagination_offset),api_path)
-                                    async with session.get(api_path, headers =  {'x-api-key':self.api_key}, ssl=False) as resp:
-                                        if resp.status == 200: 
-                                            content = await resp.json()
-                                            ss_pagination_results = pd.json_normalize(content,record_path=['data'])
-
-                                            if not ss_pagination_results.empty:
-                                                print(ss_pagination_results.columns)
-                                                print(ss_pagination_results)
-                                                if self.direction == 'citations':
-                                                    ss_pagination_results.columns = ss_pagination_results.columns.str.replace('citingPaper.', '')
-                                                if self.direction == 'references':
-                                                    ss_pagination_results.columns = ss_pagination_results.columns.str.replace('citedPaper.', '')
-
-                                                ss_pagination_results.columns = ss_pagination_results.columns.str.replace('citingPaper.', '')
-                                                ss_pagination_results.columns = ss_pagination_results.columns.str.replace('externalIds.', '')
-                                                ss_pagination_results.rename(columns = {
-                                                    'paperId' : 'paper_Id', 'title':'paper_Title','abstract':'paper_Abstract','year':'paper_Year','citationCount':'paper_citation_count','fieldsOfStudy':'paper_field','authors':'paper_author'
-                                                }, inplace=True)
-                                                print('Request sucessful for pagination at offset: ' + str(pagination_offset), 'for the path: ', api_path)
-                                                print('Appending data to results')
-                                                ss_results_full = pd.concat([ss_results_full, ss_pagination_results],ignore_index=True)         
-                                            else: 
-                                                print('No data found for paper with pagination at offset: ' + str(pagination_offset), 'for the path: ', api_path)
-
-                                    pagination_check = len(ss_pagination_results)
+                                    #check if pagination is required
+                                    pagination_check = len(ss_results)
                                     print('Pagination check: ', pagination_check)
-                            # ss_results_full = pd.concat([ss_results_full,ss_results],ignore_index=True)
+                                    ss_pagination_results = pd.DataFrame()
+                                    if pagination_check >= self.pagination_limit: 
+                                        print('Pagination detected for following path: ', api_path)
+                                        pagination_offset = self.default_pagination_offset
+                                        while pagination_check >= self.pagination_limit: 
+                                            pagination_offset += self.pagination_limit 
+                                            print('Pagination offset: ', pagination_offset)
+                                            #regex substitution to update offset value in API path
+                                            api_path = re.sub(r"(?<=offset=)(.*)(?=&limit)",str(pagination_offset),api_path)
+                                            for pagination_attempt in range(self.max_retries): 
+                                                try:
+                                                    async with self.api_limit:
+                                                        async with session.get(api_path, headers =  {'x-api-key':self.api_key}, ssl=False) as resp:
+                                                            if resp.status == 200: 
+                                                                content = await resp.json()
+                                                                ss_pagination_results = pd.json_normalize(content,record_path=['data'])
+
+                                                                if not ss_pagination_results.empty:
+                                                                    if self.direction == 'citations':
+                                                                        ss_pagination_results.columns = ss_pagination_results.columns.str.replace('citingPaper.', '')
+                                                                    if self.direction == 'references':
+                                                                        ss_pagination_results.columns = ss_pagination_results.columns.str.replace('citedPaper.', '')
+
+                                                                    ss_pagination_results.columns = ss_pagination_results.columns.str.replace('citingPaper.', '')
+                                                                    ss_pagination_results.columns = ss_pagination_results.columns.str.replace('externalIds.', '')
+                                                                    ss_pagination_results.rename(columns = {
+                                                                        'paperId' : 'paper_Id', 'title':'paper_Title','abstract':'paper_Abstract','year':'paper_Year','citationCount':'paper_citation_count','fieldsOfStudy':'paper_field','authors':'paper_author'
+                                                                    }, inplace=True)
+                                                                    print('Request sucessful for pagination at offset: ' + str(pagination_offset), 'for the path: ', api_path)
+                                                                    print('Appending data to results')
+                                                                    ss_results_full = pd.concat([ss_results_full, ss_pagination_results],ignore_index=True)         
+                                                                else: 
+                                                                    print('No data found for paper with pagination at offset: ' + str(pagination_offset), 'for the path: ', api_path)
+                                                                    break
+
+                                                            elif resp.status != 200: 
+                                                                print(f'Pagination failed for the path: {api_path} with status code: {resp.status}')
+                                                                if resp.status == 429: 
+                                                                    raise aiohttp.ClientResponseError(resp.request_info, resp.history,
+                                                                                                        status=resp.status,
+                                                                                                        message="Rate limit exceeded", headers=resp.headers)
+                                                                    resp.raise_for_status()
+
+                                                except aiohttp.ClientResponseError as e: 
+                                                    if pagination_attempt == self.max_retries - 1: 
+                                                        print(f'Pagination failed after {self.max_retries} attempts for the path: {api_path}')
+                                                        break 
+                                                    delay = (self.base_delay * (2 ** pagination_attempt)) + (random.randint(0,1000)/1000)
+                                                    print(f'Waiting {delay} seconds before retrying...')
+                                                    await asyncio.sleep(delay)
+
+                                            pagination_check = len(ss_pagination_results)
+                                            print('Pagination check: ', pagination_check)
+                                        # ss_results_full = pd.concat([ss_results_full,ss_results],ignore_index=True)
 
 
-                        except ValueError as e: 
-                            print(e, 'No data found for following path: ', api_path)
-                            self.error_log.append(e)
-                            #pass an empty dataframe to the results_full dataframe and continue 
-                            ss_results = pd.DataFrame()
-                            ss_results_full = pd.concat([ss_results_full,ss_results],ignore_index=True)
-                            # self.semaphore.release()
-                            return ss_results_full
-
+                                except ValueError as e: 
+                                    print(e, 'No data found for following path: ', api_path)
+                                    self.error_log.append(e)
+                                    #pass an empty dataframe to the results_full dataframe and continue 
+                                    ss_results = pd.DataFrame()
+                                    ss_results_full = pd.concat([ss_results_full,ss_results],ignore_index=True)
+                                    # self.semaphore.release()
+                                    return ss_results_full
+            except aiohttp.ClientResponseError as e: 
+                if attempt == self.max_retries - 1: 
+                    print(f'Failed to retrieve data after {self.max_retries} attempts for the path: {api_path}')
+                    self.error_log.append(f'Failed to retrieve data after {self.max_retries} attempts for the path: {api_path}')
+                    return None
+                delay = (self.base_delay * (2 ** attempt)) + (random.randint(0,1000)/1000)
+                print(f'Waiting {delay} seconds before retrying...')
+                await asyncio.sleep(delay)
                        
         return ss_results_full
 
-    async def retrieve_citations(self, article_df): 
+    async def retrieve_citations(self, article_df, progress_bar): 
         '''retrieves citation data from a given article dataframe'''
         self.direction = 'citations'
         forward_snowball_tasks = [] 
         id_list = article_df['seed_Id'].tolist()
         api_path_list = self.generate_default_api_path(id_list,'citations')
+        api_path_list = [path for path in api_path_list if path is not None]
+        total_tasks = len(api_path_list)
+        completed_tasks = 0
 
-        for url in api_path_list: 
-            forward_snowball_tasks.append(self.retrieve_paperdetails(url))
-        ss_results = await asyncio.gather(*forward_snowball_tasks)
-        print(len(ss_results))
+
+        async def fetch_with_progress(url): 
+            nonlocal completed_tasks
+            result = await self.retrieve_paperdetails(url)
+            completed_tasks += 1
+            progress = completed_tasks / total_tasks
+            progress_bar.progress(progress, text = f"Retrieving citations: {completed_tasks}/{total_tasks} ({progress:.1%})")
+            return result
+
+        ss_results = []
+        #implement batching 
+        for i in range(0, len(api_path_list), self.batch_size): 
+            batch = api_path_list[i:i+self.batch_size]
+            batch_tasks = [fetch_with_progress(url) for url in batch]
+            batch_results = await asyncio.gather(*batch_tasks)
+            ss_results.extend([r for r in batch_results if r is not None])
+
         ss_consolidated_citations = pd.concat(ss_results,ignore_index=True)
+        st.write("Finished retrieving citations.")
         return ss_consolidated_citations
     
-    async def retrieve_references(self, article_df): 
+    
+
+    async def retrieve_references(self, article_df, progress_bar): 
         '''retrieves reference data from a given article dataframe'''
         self.direction = 'references'
         backward_snowball_tasks = [] 
         id_list = article_df['seed_Id'].tolist()
         api_path_list = self.generate_default_api_path(id_list,'references')
+        api_path_list = [path for path in api_path_list if path is not None]
+        total_tasks = len(api_path_list)
+        completed_tasks = 0
 
-        for url in api_path_list: 
-            backward_snowball_tasks.append(self.retrieve_paperdetails(url))
-        ss_results = await asyncio.gather(*backward_snowball_tasks)
-        print(len(ss_results))
+        ss_results = []
+
+        async def fetch_with_progress(url): 
+            nonlocal completed_tasks
+            result = await self.retrieve_paperdetails(url)
+            completed_tasks += 1
+            progress = completed_tasks / total_tasks
+            progress_bar.progress(progress, text = f"Retrieving references: {completed_tasks}/{total_tasks} ({progress:.1%})")
+            return result
+
+        for i in range(0, len(api_path_list), self.batch_size): 
+            batch = api_path_list[i:i+self.batch_size]
+            batch_tasks = [fetch_with_progress(url) for url in batch]
+            batch_results = await asyncio.gather(*batch_tasks)
+            ss_results.extend([r for r in batch_results if r is not None])
+            
+        st.write("Finished retrieving references.")
+
         ss_consolidated_references = pd.concat(ss_results,ignore_index=True)
         return ss_consolidated_references
 
