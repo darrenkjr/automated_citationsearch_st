@@ -18,7 +18,7 @@ st.write('Citation searching involves looking through the reference section of a
 st.write('Under the hood we are querying the Semantic Scholar Application Programming Interface, which holds a database of over 200 million papers, from a range of sources, including PubMed, Preprint servers, and Microsoft Academic Graph. We recently added support for OpenAlex as well which has comparable coverage.')
 st.write('This is part of a doctoral project investigating how to incorporate AI and automation into evidence synthesis, and work is underway in emperically investigating best practice in utilising automated citation searching during evidence retrieval.')
 
-st.write('If you find this tool useful, we would love for you to cite us at: https://doi.org/10.26180/26785558.v1. Feedback is always welcome, alongside bug / issue reports. Please send these to darren.rajit1@monash.edu')
+st.write('If you find this tool useful, we would love for you to cite us at: https://doi.org/10.26180/26785558.v2. Feedback is always welcome, alongside bug / issue reports. Please send these to darren.rajit1@monash.edu')
 
 st.write('---')
 st.write('### Step 1: Select your database of choice')
