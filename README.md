@@ -1,2 +1,5 @@
-# A Semi-Automated Framework for Evidence Retrieval and Screening in Evidence Synthesis Projects 
+# Automated Citation Searching via Semantic Scholar and OpenAlex 
+--- 
+This repositiory stores the source code for : https://darrenkjr-automatedcitationsearch.streamlit.app/
+
 

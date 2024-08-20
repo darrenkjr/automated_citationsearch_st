@@ -18,7 +18,7 @@ class openalex_interface:
 
     def __init__(self): 
 
-        self.semaphore = asyncio.Semaphore(value=100)
+        # self.semaphore = asyncio.Semaphore(value=100)
         self.api_limit = AsyncLimiter(9,1)
         # self.article_df = article_df 
         self.pagination_limit = 200
@@ -184,7 +184,7 @@ class openalex_interface:
         for api_path in api_path_list:
             
             async with aiohttp.ClientSession() as session:
-                await self.semaphore.acquire()
+                # await self.semaphore.acquire()
                 async with self.api_limit: 
                     async with session.get(api_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
                         if resp.status != 200: 
@@ -237,9 +237,6 @@ class openalex_interface:
                                             
                                                 cursor = resp_meta['next_cursor']
 
-                                            
-                        else: 
-                            self.semaphore.release()
                                 
         return openalex_results_full
 
