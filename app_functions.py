@@ -5,9 +5,7 @@ import streamlit as st
 
 async def run_handsearch(api,seed_article_df): 
 
-    st.write('---')
     
-    st.write('### Step 3 : Conduct automated handsearching and deduplication based on your initial set of articles.')
     
     try: 
         st.write('Now conducting automated handsearching. Give us a minute')
@@ -27,16 +25,6 @@ async def run_handsearch(api,seed_article_df):
 
     result_full = pd.concat([citations, references], ignore_index=True)
     result_dedupe = result_full.drop_duplicates(subset=['paper_Id'])
-
-    st.write('Handsearching done over', iter_num, ' iteration. We found a total of: ', len(result_full), 'and ', len(result_dedupe), 'unique articles based on your initial sample size of ', len(seed_article_df), 'articles.')
-
-    st.write('Metadata retrieval done 🎉. Download ready as CSV RIS file. For reference the encoding is in UTF-8. RIS File Support is comming imminently.')
-    st.download_button(
-        label = 'Download results as CSV file',
-        data = result_dedupe.to_csv().encode('utf-8'),
-        file_name = 'automated_handsearch_results.csv',
-        mime='text/csv',
-    )
 
     return result_dedupe
 
