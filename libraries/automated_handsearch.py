@@ -21,7 +21,8 @@ class automated_handsearch:
             self.api_interface = semanticscholar_interface(semanticscholar_api_key)
 
         if api == 'OpenAlex':
-            self.api_interface = openalex_interface()
+            oa_email_address = st.secrets['oa_email_address']
+            self.api_interface = openalex_interface(oa_email_address)
         
     async def run_citation_search(self, article_df): 
 

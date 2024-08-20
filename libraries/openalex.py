@@ -16,11 +16,10 @@ class openalex_interface:
     dataframe containing a column of article ids (either DOI or OpenAlex format).
     '''
 
-    def __init__(self): 
+    def __init__(self, oa_email_address): 
 
-        # self.semaphore = asyncio.Semaphore(value=100)
-        self.api_limit = AsyncLimiter(9,1)
-        # self.article_df = article_df 
+        self.oa_email_address = oa_email_address
+        self.api_limit = AsyncLimiter(9,1) 
         self.pagination_limit = 200
         self.default_cursor = '*'
         self.batch_size = 10
@@ -186,7 +185,7 @@ class openalex_interface:
             async with aiohttp.ClientSession() as session:
                 # await self.semaphore.acquire()
                 async with self.api_limit: 
-                    async with session.get(api_path, headers={"mailto":"darren.rajit1@monash.edu"}) as resp: 
+                    async with session.get(api_path, headers={"mailto":self.oa_email_address}) as resp: 
                         if resp.status != 200: 
                             print('Appropriate Response not received for path:', api_path)
                             print('Response status:', resp.status)
@@ -214,7 +213,7 @@ class openalex_interface:
                                     cursor = resp_meta['next_cursor']
                                     api_path = re.sub(r"(?<=cursor\=).*$",cursor, api_path)
                                     print('Pagination API path:', api_path)
-                                    async with session.get(api_path, headers={"mailto":"darren.rajit1@monash.edu"}) as pagination_resp: 
+                                    async with session.get(api_path, headers={"mailto":self.oa_email_address}) as pagination_resp: 
                                         if pagination_resp.status == 200: 
                                             print('Pagination Response received')
                                             pagination_content = await pagination_resp.json()
