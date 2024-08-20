@@ -3,7 +3,7 @@ import requests
 from libraries.automated_handsearch import automated_handsearch
 import streamlit as st
 
-async def run_handsearch(api,seed_article_df): 
+async def run_handsearch(api,seed_article_df, iter_num): 
 
     
     
@@ -15,13 +15,13 @@ async def run_handsearch(api,seed_article_df):
     handsearch_instance = automated_handsearch(api)
 
     #number of iterations 
-    iter_num = 1
+    #placeholder - future implementation will allow for multiple iterations, by wrapping this in a loop
 
     citations_progress = st.progress(0, text="Initializing citation retrieval...")
-    citations = await handsearch_instance.retrieve_citations(seed_article_df, citations_progress, citations_progress)
+    citations = await handsearch_instance.retrieve_citations(seed_article_df, citations_progress)
     
     references_progress = st.progress(0, text="Initializing reference retrieval...")
-    references = await handsearch_instance.retrieve_references(seed_article_df, references_progress, references_progress)
+    references = await handsearch_instance.retrieve_references(seed_article_df, references_progress)
 
     result_full = pd.concat([citations, references], ignore_index=True)
     result_dedupe = result_full.drop_duplicates(subset=['paper_Id'])

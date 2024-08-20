@@ -10,9 +10,9 @@ demo_cls = demo_article()
 seed_article_df_example = demo_cls.load_seed_article_data()
 results = pd.DataFrame()
 
-st.title('Automated citation search - Proof of Concept Demo - Part of the Automated Evidence Synthesis Stack')
+st.title('Automated Citation Searching - Proof of Concept Demo')
 
-st.write('Hi There! This is a web app (note: Highly Experimental!) that conducts automated citation searching as part of evidence retrieval in evidence synthesis tasks. For example, for systematic reviews, evidence based guideline development etc.'
+st.write('Hi There! This is a web app (**note: Highly Experimental!**) that conducts automated citation searching as part of evidence retrieval in evidence synthesis tasks. For example, for systematic reviews, evidence based guideline development etc.'
 )
 st.write('Citation searching involves looking through the reference section of an article (Backward citation) and also all papers that have cited the starting article (Forward citation) as a means to obtain potentiallly relevant articles for a given research question or evidence synthesis task. This is also known as snowballing.')
 st.write('Under the hood we are querying the Semantic Scholar Application Programming Interface, which holds a database of over 200 million papers, from a range of sources, including PubMed, Preprint servers, and Microsoft Academic Graph. We recently added support for OpenAlex as well which has comparable coverage.')
@@ -21,7 +21,7 @@ st.write('This is part of a doctoral project investigating how to incorporate AI
 st.write('If you find this tool useful, we would love for you to cite us at: https://doi.org/10.26180/26785558.v2. Feedback is always welcome, alongside bug / issue reports. Please send these to darren.rajit1@monash.edu')
 
 # display warning header for rate limits and potential instability 
-st.warning('Please note that there are rate limits on the APIs we are using. If you encounter any issues, please try again later.')
+st.warning('Please note that there are rate limits on the APIs we are using. If you encounter any issues or instability, please try again later.')
 st.write('---')
 st.write('### Step 1: Select your database of choice')
 
@@ -70,10 +70,9 @@ st.write('### Step 3 : Conduct automated citation searching and deduplication ba
 if not input_df.empty:
 
     if st.button('Run citation search', disabled=False):
-        citations_progress = st.progress(0, text="Initializing citation retrieval...")
-        references_progress = st.progress(0, text="Initializing reference retrieval...")
-        
-        results = asyncio.run(run_handsearch(api, input_df, citations_progress, references_progress))
+        #placeholder for iteration number - multiple iterations are coming soon (but this will require some extensive testing)
+        iter_num = 1
+        results = asyncio.run(run_handsearch(api, input_df, iter_num))
         
         st.write("Results:")
         st.dataframe(results)
@@ -87,13 +86,13 @@ st.write('### Step 4: Download results')
 #if results is a non empty dataframe, then download results 
 if results.empty == False: 
 
-    st.write('citation searching done over', iter_num, ' iteration. We found a total of: ', len(result_full), 'and ', len(result_dedupe), 'unique articles based on your initial sample size of ', len(seed_article_df), 'articles.')
+    st.write('Citation searching done over', iter_num, ' iteration. We found a total of: ', len(results), 'unique articles based on your initial sample size of ', len(input_df), 'articles.')
 
-    st.write('Metadata retrieval done 🎉. Download ready as CSV RIS file. For reference the encoding is in UTF-8. RIS File Support is comming imminently.')
+    st.write('Metadata retrieval sucessful 🎉. Download now ready as CSV RIS file. For reference the encoding is in UTF-8. RIS File Support is comming imminently.')
     st.download_button(
         disabled = False,
         label = 'Download results as CSV file',
-        data = result_dedupe.to_csv().encode('utf-8'),
+        data = results.to_csv().encode('utf-8'),
         file_name = 'automated_citation search_results.csv',
         mime='text/csv',)
     
