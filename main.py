@@ -88,7 +88,7 @@ if results.empty == False:
 
     st.write('Citation searching done over', iter_num, ' iteration. We found a total of: ', len(results), 'unique articles based on your initial sample size of ', len(input_df), 'articles.')
 
-    st.write('Metadata retrieval sucessful 🎉. Download now ready as CSV RIS file. For reference the encoding is in UTF-8. RIS File Support is comming imminently.')
+    st.write('Metadata retrieval sucessful 🎉. Download now ready as CSV file. For reference the encoding is in UTF-8. RIS File Support is comming imminently.')
     st.download_button(
         disabled = False,
         label = 'Download results as CSV file',
