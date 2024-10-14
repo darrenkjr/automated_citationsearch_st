@@ -17,7 +17,7 @@ st.write('Hi There! This is a web app (**note: Highly Experimental!**) that cond
 st.write('Citation searching involves looking through the reference section of an article (Backward citation) and also all papers that have cited the starting article (Forward citation) as a means to obtain potentiallly relevant articles for a given research question or evidence synthesis task. This is also known as snowballing.')
 st.markdown('The following bibliographic databases are supported: OpenAlex [1], and Semantic Scholar [2], both of which have coverage of over 200 million articles.')
 
-st.write('This is part of a doctoral project investigating how to incorporate AI and automation into evidence synthesis, and work is underway in emperically investigating best practice in utilising automated citation searching during evidence retrieval.')
+st.write('This is part of a doctoral project investigating how to incorporate AI and automation into evidence synthesis, and work is underway in emperically investigating best practice in utilising automated citation searching during evidence retrieval [3].')
 
 st.write('If you find this tool useful, we would love for you to cite us at: https://doi.org/10.26180/26785558.v2. Feedback is always welcome, alongside bug / issue reports. Please send these to darren.rajit1@monash.edu')
 
@@ -114,4 +114,6 @@ st.markdown("""
 [1] Priem, J., Piwowar, H., & Orr, R. (2022). OpenAlex: A fully-open index of scholarly works, authors, venues, institutions, and concepts. ArXiv. https://arxiv.org/abs/2205.01833
 
 [2] Kyle Lo, Lucy Lu Wang, Mark Neumann, Rodney Kinney, Dan S. Weld (2020). S2ORC: The Semantic Scholar Open Research Corpus. ArXiv. https://arxiv.org/abs/1911.02782
+
+[3] Rajit D, Du L, Teede H, Callander E, Enticott J. Automated Citation Searching in Systematic Review Production: A Simulation Study Protocol and Framework. Authorea Preprints; 2023. DOI: 10.22541/au.169028985.56828301/v1. 
 """)
