@@ -76,7 +76,7 @@ if not input_df.empty:
         st.session_state.results = asyncio.run(run_handsearch(api, input_df, iter_num))
         
         st.write("Results:")
-        st.dataframe(results)
+        st.dataframe(st.session_state.results)
 else: 
     st.button('Run citation search', disabled=True)
 
