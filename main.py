@@ -27,7 +27,7 @@ st.write('---')
 st.write('### Step 1: Select your database of choice')
 
 api =st.radio(
-    "Choice of database:", ('Semantic Scholar','OpenAlex'))
+    "Choice of database:", ('OpenAlex','Semantic Scholar'))
 
 
 st.write('---')
@@ -73,7 +73,7 @@ if not input_df.empty:
     if st.button('Run citation search', disabled=False):
         #placeholder for iteration number - multiple iterations are coming soon (but this will require some extensive testing)
         iter_num = 1
-        results = asyncio.run(run_handsearch(api, input_df, iter_num))
+        st.session_state.results = asyncio.run(run_handsearch(api, input_df, iter_num))
         
         st.write("Results:")
         st.dataframe(results)
@@ -85,19 +85,19 @@ st.write('---')
 st.write('### Step 4: Download results')
 
 #if results is a non empty dataframe, then download results 
-if results.empty == False: 
+if 'results' in st.session_state and not st.session_state.results.empty:
 
-    st.write('Citation searching done over', iter_num, ' iteration. We found a total of: ', len(results), 'unique articles based on your initial sample size of ', len(input_df), 'articles.')
+    st.write('Citation searching done over', iter_num, ' iteration. We found a total of: ', len(st.session_state.results), 'unique articles based on your initial sample size of ', len(input_df), 'articles.')
 
     st.write('Metadata retrieval sucessful 🎉. Download now ready as CSV file. For reference the encoding is in UTF-8. RIS File Support is comming imminently.')
     st.download_button(
         disabled = False,
         label = 'Download results as CSV file',
-        data = results.to_csv().encode('utf-8'),
+        data = st.session_state.results.to_csv().encode('utf-8'),
         file_name = 'automated_citation search_results.csv',
         mime='text/csv',)
     
-elif results.empty == True: 
+else:
     st.write('No results available for download yet. Please run the citation search first.')
     st.download_button(
         label='Download results as CSV file',
@@ -106,6 +106,8 @@ elif results.empty == True:
         mime='text/csv',
         disabled=True
     )
+    
+
 
 
 st.markdown("""
