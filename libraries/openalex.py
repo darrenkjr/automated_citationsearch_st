@@ -262,41 +262,88 @@ class openalex_interface:
 
 
     def to_ris(self, df, path):
-
-        result_df_openalex = df 
-        entries = result_df_openalex[['paper_Id', 'doi', 'title', 'abstract', 'publication_year', 'publication_date','authorships','host_venue', 'type']].copy()
-        entries['database_provider'] = 'OpenAlex'
-        entries.rename(columns = {'type' : 'type_of_reference'
-                                ,'publication_year' : 'year'
-                                ,'publication_date' : 'date'
-                                ,'authorships' : 'authorship_data'
-                                ,'host_venue' : 'journal_name'
-                                ,'paper_Id' : 'id'
-                                }, inplace = True)
-
-        #unpacking dictionary of authors into a list of authors
-        print('Writing RIS File..')
-
-        author_data = pd.json_normalize(entries['authorship_data'].apply(lambda x : eval(str(x))))
-        author_data = author_data.applymap(lambda x: {} if pd.isnull(x) else x)
-        colname_range = range(1, len(list(author_data))+1)
-        new_cols = ['A' + str(i) for i in colname_range]
-        author_data.columns = new_cols
-
-        author_names = author_data.apply(lambda x : x.str.get('author.display_name'), axis = 1)
-        print(author_names)
-        author_names = author_names.apply(lambda x : list(x.tolist()), axis = 1)
-        print(author_names)
-        author_names = author_names.apply(lambda x : list(filter(lambda item: item is not None, x)))
-        print(author_names)
-        
-        author_names.name = 'authors'
-        # entries_flat_authors = pd.concat([entries, author_names], axis = 1).reset_index(drop = True)
-        entries_flat_authors = entries.join(author_names).reset_index(drop = True)
-        entries_flat_authors = entries_flat_authors.drop(['authorship_data'], axis = 1)
-        entries_ris = entries_flat_authors.to_dict('records')
-
-        
-        with open (path,'w', encoding = 'utf-8') as f:
-            rispy.dump(entries_ris,f)
+        """
+        Export OpenAlex results to RIS format.
+        """
+        try:
+            result_df_openalex = df.copy()
+            
+            # Check if required columns exist
+            required_columns = ['paper_Id', 'doi', 'title', 'abstract', 'publication_year', 'publication_date', 'authorships', 'host_venue', 'type']
+            missing_columns = [col for col in required_columns if col not in result_df_openalex.columns]
+            
+            if missing_columns:
+                print(f"Warning: Missing columns: {missing_columns}")
+                # Fill missing columns with empty values
+                for col in missing_columns:
+                    result_df_openalex[col] = ''
+            
+            # Select and rename columns safely
+            entries = result_df_openalex[required_columns].copy()
+            entries['database_provider'] = 'OpenAlex'
+            
+            # Rename columns
+            column_mapping = {
+                'type': 'type_of_reference',
+                'publication_year': 'year',
+                'publication_date': 'date',
+                'authorships': 'authorship_data',
+                'host_venue': 'journal_name',
+                'paper_Id': 'id'
+            }
+            entries.rename(columns=column_mapping, inplace=True)
+            
+            print('Writing RIS File..')
+            
+            # Safely handle authorship data
+            try:
+                # Use ast.literal_eval instead of eval for safety
+                import ast
+                author_data = pd.json_normalize(
+                    entries['authorship_data'].apply(
+                        lambda x: ast.literal_eval(str(x)) if pd.notna(x) and str(x) != 'nan' else {}
+                    )
+                )
+                
+                if not author_data.empty:
+                    # Process author names safely
+                    colname_range = range(1, len(author_data.columns) + 1)
+                    new_cols = ['A' + str(i) for i in colname_range]
+                    author_data.columns = new_cols
+                    
+                    author_names = author_data.apply(
+                        lambda x: x.str.get('author.display_name', ''), axis=1
+                    )
+                    author_names = author_names.apply(
+                        lambda x: [name for name in x.tolist() if pd.notna(name) and name != ''], axis=1
+                    )
+                    author_names.name = 'authors'
+                    
+                    # Join author names with entries
+                    entries_flat_authors = entries.join(author_names).reset_index(drop=True)
+                    entries_flat_authors = entries_flat_authors.drop(['authorship_data'], axis=1)
+                else:
+                    # No author data, create empty authors column
+                    entries_flat_authors = entries.copy()
+                    entries_flat_authors['authors'] = ''
+                    
+            except Exception as e:
+                print(f"Warning: Error processing authors: {e}")
+                # Fallback: create empty authors column
+                entries_flat_authors = entries.copy()
+                entries_flat_authors['authors'] = ''
+            
+            # Convert to records for rispy
+            entries_ris = entries_flat_authors.to_dict('records')
+            
+            # Write RIS file
+            with open(path, 'w', encoding='utf-8') as f:
+                rispy.dump(entries_ris, f)
+                
+            print(f"RIS file successfully written to: {path}")
+            return True
+            
+        except Exception as e:
+            print(f"Error writing RIS file: {e}")
+            return False
 
