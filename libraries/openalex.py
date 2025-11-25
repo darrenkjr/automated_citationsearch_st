@@ -177,12 +177,11 @@ class openalex_interface:
         
 
         st.write('Retrieving citations for seed articles')
-        citation_tasks = []
         
         #reset tasks number
         #reset progress bar 
-        completed_tasks = 0
-        total_tasks = len(citation_url_list)
+        completed_citation_tasks = 0
+        total_citation_tasks = len(citation_url_list)
         progress_bar.progress(0, text=f"Retrieving citations: 0/{total_tasks} (0%)")
 
         async def fetch_citation_with_progress(url): 
