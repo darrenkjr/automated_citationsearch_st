@@ -151,7 +151,7 @@ class openalex_interface:
 
         total_seed_article_tasks = len(openalex_api_path_list)
         completed_seed_article_tasks = 0
-        st.write('Retrieving paper details for seed articles initially. Each batch contains max 50 seed ids.')
+        st.write('Retrieving paper details for seed articles initially in batches. Each batch contains max 50 seed ids.')
         #obtain paper details for each seed id from openalex 
         async def fetch_seed_with_progress(url): 
             nonlocal completed_seed_article_tasks 
@@ -182,7 +182,7 @@ class openalex_interface:
         #reset progress bar 
         completed_citation_tasks = 0
         total_citation_tasks = len(citation_url_list)
-        progress_bar.progress(0, text=f"Retrieving citations: 0/{total_tasks} (0%)")
+        progress_bar.progress(0, text=f"Retrieving citations: 0/{total_citation_tasks} (0%)")
 
         async def fetch_citation_with_progress(url): 
             nonlocal completed_citation_tasks 
