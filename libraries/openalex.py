@@ -285,10 +285,11 @@ class openalex_interface:
             # Select and rename columns safely
             entries = result_df_openalex[required_columns].copy()
             entries['database_provider'] = 'OpenAlex'
-            print(entries['primary_location'].head(3))
+            print('Extracting journal name from primary location')
             entries['journal_name'] = entries['primary_location'].apply(
                 lambda x: x.get('source',{}).get('display_name') if isinstance(x, dict) else ''
             )
+            print('Extracting volume, issue, first page, and last page from biblio')
             entries[['volume','issue','first_page','last_page']] = entries['biblio'].apply(
                 lambda x: pd.json_normalize(x).loc[:,['volume','issue','start_page','end_page']] if x is not None else pd.Series([None]*4, index=['volume','issue','first_page','last_page'])
             )
