@@ -17,11 +17,11 @@ class automated_handsearch:
         if api == 'Semantic Scholar':
             #get api key from streamlit secretes 
 
-            semanticscholar_api_key =  st.secrets['semanticscholar_api_key']
+            semanticscholar_api_key =  os.environ.get('semantic_scholar_api_key') or st.secrets['semanticscholar_api_key']
             self.api_interface = semanticscholar_interface(semanticscholar_api_key)
 
         if api == 'OpenAlex':
-            oa_email_address = st.secrets['oa_email_address']
+            oa_email_address = os.environ.get('oa_email_address') or st.secrets['oa_email_address']
             self.api_interface = openalex_interface(oa_email_address)
         
     async def run_citation_search(self, article_df): 
