@@ -18,9 +18,13 @@ async def run_handsearch(api,seed_article_df, iter_num):
 
     #number of iterations 
     #placeholder - future implementation will allow for multiple iterations, by wrapping this in a loop
-
-    citations_progress = st.progress(0, text="Initializing citation retrieval...")
-    citations = await handsearch_instance.retrieve_citations(seed_article_df, citations_progress)
+    if api == 'Semantic Scholar':
+        citations_progress = st.progress(0, text="Initializing citation retrieval...")
+        citations = await handsearch_instance.retrieve_citations(seed_article_df, citations_progress)
+    elif api == 'OpenAlex':
+        citations_progress = st.progress(0, text="Initializing citation retrieval...")
+        seed_progress = st.progress(0, text="Initializing seed article retrieval...")
+        citations = await handsearch_instance.retrieve_citations(seed_article_df, seed_progress, citations_progress)
     
     references_progress = st.progress(0, text="Initializing reference retrieval...")
     references = await handsearch_instance.retrieve_references(seed_article_df, references_progress)
