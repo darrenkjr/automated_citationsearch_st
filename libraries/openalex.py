@@ -350,5 +350,5 @@ class openalex_interface:
             
         except Exception as e:
             print(f"Error writing RIS file: {e}")
-            return False
+            raise e
 
