@@ -267,7 +267,7 @@ class openalex_interface:
             result_df_openalex = df.copy()
             
             # Check if required columns exist
-            required_columns = ['paper_Id', 'doi', 'title', 'abstract', 'publication_year', 'publication_date', 'authorships', 'host_venue', 'type']
+            required_columns = ['paper_Id', 'doi', 'title', 'abstract', 'publication_year', 'publication_date', 'authorships', 'primary_location', 'type', 'biblio']
             missing_columns = [col for col in required_columns if col not in result_df_openalex.columns]
             
             if missing_columns:
@@ -279,6 +279,14 @@ class openalex_interface:
             # Select and rename columns safely
             entries = result_df_openalex[required_columns].copy()
             entries['database_provider'] = 'OpenAlex'
+            entries['journal_name'] = entries['primary_location'].apply(
+                lambda x: x.get('source').get('display_name') if x is not None else ''
+            )
+            entries[['volume','issue','first_page','last_page']] = entries['biblio'].apply(
+                lambda x: pd.json_normalize(x).loc[:,['volume','issue','start_page','end_page']] if x is not None else pd.Series([None]*4, index=['volume','issue','first_page','last_page'])
+            )
+
+            
             
             # Rename columns
             column_mapping = {
@@ -286,7 +294,6 @@ class openalex_interface:
                 'publication_year': 'year',
                 'publication_date': 'date',
                 'authorships': 'authorship_data',
-                'host_venue': 'journal_name',
                 'paper_Id': 'id'
             }
             entries.rename(columns=column_mapping, inplace=True)
