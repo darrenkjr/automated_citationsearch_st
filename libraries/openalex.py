@@ -132,7 +132,7 @@ class openalex_interface:
         final_reference_results.rename(columns={'id':'paper_Id'}, inplace=True)
         return final_reference_results
 
-    async def retrieve_citations(self,article_df, seed_progress_bar, citation_progress_bar): 
+    async def retrieve_citations(self,article_df, seed_progress_bar): 
 
         '''retrieve citations from a given list of article IDs. OpenAlex structure is a bit different as citation urls are their own thing'''
 
@@ -180,8 +180,7 @@ class openalex_interface:
         #reset progress bar 
         completed_citation_tasks = 0
         total_citation_tasks = len(citation_url_list)
-        citation_progress_bar.progress(0, text=f"Retrieving citations: 0/{total_citation_tasks} (0%)")
-
+        citations_progress_bar = st.progress(0, text="Initializing citation retrieval...")
         async def fetch_citation_with_progress(url): 
             nonlocal completed_citation_tasks 
             result = await self.retrieve_paperdetails([url])
