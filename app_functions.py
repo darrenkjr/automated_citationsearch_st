@@ -22,8 +22,7 @@ async def run_handsearch(api,seed_article_df, iter_num):
         citations_progress = st.progress(0, text="Initializing citation retrieval...")
         citations = await handsearch_instance.retrieve_citations(seed_article_df, citations_progress)
     elif api == 'OpenAlex':
-        seed_progress = st.progress(0, text="Initializing seed article retrieval...")
-        citations = await handsearch_instance.retrieve_citations(seed_article_df, seed_progress)
+        citations = await handsearch_instance.retrieve_citations(seed_article_df)
     
     references_progress = st.progress(0, text="Initializing reference retrieval...")
     references = await handsearch_instance.retrieve_references(seed_article_df, references_progress)

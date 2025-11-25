@@ -179,7 +179,7 @@ class openalex_interface:
         #reset progress bar 
         completed_citation_tasks = 0
         total_citation_tasks = len(citation_url_list)
-        citations_progress_bar = st.progress(0, text="Initializing citation retrieval...")
+        citation_progress_bar = st.progress(0, text="Initializing citation retrieval...")
         async def fetch_citation_with_progress(url): 
             nonlocal completed_citation_tasks 
             result = await self.retrieve_paperdetails([url])
