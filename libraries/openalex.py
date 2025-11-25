@@ -171,13 +171,8 @@ class openalex_interface:
         
         #extract citation url path for each seed id (openalex id), and add to list
         seed_oa_id_list = self.openalex_results_df['id'].tolist()
-        citation_openalex_path_list = [self.citation_url.format(i,self.default_cursor,self.pagination_limit) for i in seed_oa_id_list]
+        citation_url_list = [self.citation_url.format(i,self.default_cursor,self.pagination_limit) for i in seed_oa_id_list]
         
-        # citation_url_list = []
-        # for i in citation_openalex_path['cited_by_api_url']:
-        #     path = i+('&per-page={}&cursor={}')
-        #     full_path = path.format(self.pagination_limit,self.default_cursor)
-        #     citation_url_list.append(full_path)
 
         st.write('Retrieving citations for seed articles')
         citation_tasks = []
