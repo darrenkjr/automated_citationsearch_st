@@ -132,7 +132,7 @@ class openalex_interface:
         final_reference_results.rename(columns={'id':'paper_Id'}, inplace=True)
         return final_reference_results
 
-    async def retrieve_citations(self,article_df, progress_bar): 
+    async def retrieve_citations(self,article_df, seed_progress_bar, citation_progress_bar): 
 
         '''retrieve citations from a given list of article IDs. OpenAlex structure is a bit different as citation urls are their own thing'''
 
@@ -141,9 +141,7 @@ class openalex_interface:
         id_list = article_df['seed_Id'].tolist()
         id_chunks = [self.chunk_id_list(id_list)]
 
-        
 
-        
 
         for i in id_chunks: 
             openalex_api_path_list = self.generate_default_api_path(i)
@@ -158,7 +156,7 @@ class openalex_interface:
             result = await self.retrieve_paperdetails([url])
             completed_seed_article_tasks += 1
             progress = completed_seed_article_tasks / total_seed_article_tasks
-            progress_bar.progress(progress, text=f"Retrieving seed article details: {completed_seed_article_tasks}/{total_seed_article_tasks} ({progress:.1%})")
+            seed_progress_bar.progress(progress, text=f"Retrieving seed article details: {completed_seed_article_tasks}/{total_seed_article_tasks} ({progress:.1%})")
             return result
         #batching 
         openalex_results = []
@@ -182,14 +180,14 @@ class openalex_interface:
         #reset progress bar 
         completed_citation_tasks = 0
         total_citation_tasks = len(citation_url_list)
-        progress_bar.progress(0, text=f"Retrieving citations: 0/{total_citation_tasks} (0%)")
+        citation_progress_bar.progress(0, text=f"Retrieving citations: 0/{total_citation_tasks} (0%)")
 
         async def fetch_citation_with_progress(url): 
             nonlocal completed_citation_tasks 
             result = await self.retrieve_paperdetails([url])
             completed_citation_tasks += 1
             progress = completed_citation_tasks / total_citation_tasks
-            progress_bar.progress(progress, text=f"Retrieving citations: {completed_citation_tasks}/{total_citation_tasks} ({progress:.1%})")
+            citation_progress_bar.progress(progress, text=f"Retrieving citations: {completed_citation_tasks}/{total_citation_tasks} ({progress:.1%})")
             return result
 
         citation_results = []
