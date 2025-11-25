@@ -132,7 +132,7 @@ class openalex_interface:
         final_reference_results.rename(columns={'id':'paper_Id'}, inplace=True)
         return final_reference_results
 
-    async def retrieve_citations(self,article_df, seed_progress_bar): 
+    async def retrieve_citations(self,article_df): 
 
         '''retrieve citations from a given list of article IDs. OpenAlex structure is a bit different as citation urls are their own thing'''
 
