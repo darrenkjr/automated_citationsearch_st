@@ -24,7 +24,7 @@ class openalex_interface:
         self.default_cursor = '*'
         self.batch_size = 10
         self.openalex_results_df = pd.DataFrame()
-        self.citation_url = 'https://api.openalex.org/works?filter=citesP{}&{}&per-page={}&cursor={}'
+        self.citation_url = 'https://api.openalex.org/works?filter=cites:{}&per-page={}&cursor={}'
 
         if platform.system()=='Windows':
                 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
