@@ -39,11 +39,8 @@ class automated_handsearch:
         ris = asyncio.run(self.api_interface.to_ris(df))
         return ris
 
-    async def retrieve_citations(self, article_df, seed_progress_bar, citation_progress_bar):
-        if self.api == 'OpenAlex':
-            return await self.api_interface.retrieve_citations(article_df, seed_progress_bar, citation_progress_bar)
-        elif self.api == 'Semantic Scholar':
-            return await self.api_interface.retrieve_citations(article_df, progress_bar)
+    async def retrieve_citations(self, article_df, progress_bar):
+        return await self.api_interface.retrieve_citations(article_df, progress_bar)
 
     async def retrieve_references(self, article_df, progress_bar):
         return await self.api_interface.retrieve_references(article_df, progress_bar)
