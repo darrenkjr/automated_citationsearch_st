@@ -288,7 +288,7 @@ class openalex_interface:
             entries = result_df_openalex[required_columns].copy()
             entries['database_provider'] = 'OpenAlex'
             entries['journal_name'] = entries['primary_location'].apply(
-                lambda x: x.get('source').get('display_name') if x is not None else ''
+                lambda x: x.get('source',{}).get('display_name') if x is not None else ''
             )
             entries[['volume','issue','first_page','last_page']] = entries['biblio'].apply(
                 lambda x: pd.json_normalize(x).loc[:,['volume','issue','start_page','end_page']] if x is not None else pd.Series([None]*4, index=['volume','issue','first_page','last_page'])
