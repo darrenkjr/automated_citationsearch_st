@@ -141,8 +141,6 @@ class openalex_interface:
         id_list = article_df['seed_Id'].tolist()
         id_chunks = [self.chunk_id_list(id_list)]
 
-
-
         for i in id_chunks: 
             openalex_api_path_list = self.generate_default_api_path(i)
             
@@ -150,6 +148,7 @@ class openalex_interface:
         total_seed_article_tasks = len(openalex_api_path_list)
         completed_seed_article_tasks = 0
         st.write('Retrieving paper details for seed articles initially in batches. Each batch contains max 50 seed ids.')
+        seed_progress_bar = st.progress(0, text="Initializing seed article retrieval...")
         #obtain paper details for each seed id from openalex 
         async def fetch_seed_with_progress(url): 
             nonlocal completed_seed_article_tasks 
