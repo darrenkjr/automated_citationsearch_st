@@ -140,29 +140,31 @@ class openalex_interface:
         citation_results_full = pd.DataFrame()
         id_list = article_df['seed_Id'].tolist()
         id_chunks = [self.chunk_id_list(id_list)]
-        completed_tasks = 0
+
         
 
-        #obtain paper details for each seed id from openalex 
-        async def fetch_with_progress(url, retrieval_type): 
-            nonlocal completed_tasks 
-            result = await self.retrieve_paperdetails([url])
-            completed_tasks += 1
-            progress = completed_tasks / total_tasks
-            progress_bar.progress(progress, text=f"Retrieving {retrieval_type}: {completed_tasks}/{total_tasks} ({progress:.1%})")
-            return result
+        
 
         for i in id_chunks: 
             openalex_api_path_list = self.generate_default_api_path(i)
             
 
-        total_tasks = len(openalex_api_path_list)
+        total_seed_article_tasks = len(openalex_api_path_list)
+        completed_seed_article_tasks = 0
         st.write('Retrieving paper details for seed articles initially. Each batch contains max 50 seed ids.')
+        #obtain paper details for each seed id from openalex 
+        async def fetch_seed_with_progress(url): 
+            nonlocal completed_seed_article_tasks 
+            result = await self.retrieve_paperdetails([url])
+            completed_seed_article_tasks += 1
+            progress = completed_seed_article_tasks / total_seed_article_tasks
+            progress_bar.progress(progress, text=f"Retrieving seed article details: {completed_seed_article_tasks}/{total_seed_article_tasks} ({progress:.1%})")
+            return result
         #batching 
         openalex_results = []
         for i in range(0, len(openalex_api_path_list), self.batch_size):
             batch = openalex_api_path_list[i:i+self.batch_size]
-            batch_tasks = [fetch_with_progress(url, retrieval_type = 'seed batch') for url in batch]
+            batch_tasks = [fetch_seed_with_progress(url) for url in batch]
             batch_results = await asyncio.gather(*batch_tasks)
             openalex_results.extend([r for r in batch_results if r is not None])
 
@@ -176,16 +178,25 @@ class openalex_interface:
 
         st.write('Retrieving citations for seed articles')
         citation_tasks = []
-        citation_results = []
+        
         #reset tasks number
-
         #reset progress bar 
         completed_tasks = 0
         total_tasks = len(citation_url_list)
         progress_bar.progress(0, text=f"Retrieving citations: 0/{total_tasks} (0%)")
+
+        async def fetch_citation_with_progress(url): 
+            nonlocal completed_citation_tasks 
+            result = await self.retrieve_paperdetails([url])
+            completed_citation_tasks += 1
+            progress = completed_citation_tasks / total_citation_tasks
+            progress_bar.progress(progress, text=f"Retrieving citations: {completed_citation_tasks}/{total_citation_tasks} ({progress:.1%})")
+            return result
+
+        citation_results = []
         for i in range(0, len(citation_url_list), self.batch_size):
             batch = citation_url_list[i:i+self.batch_size]
-            batch_tasks = [fetch_with_progress(url, retrieval_type = 'citations') for url in batch]
+            batch_tasks = [fetch_citation_with_progress(url) for url in batch]
             batch_results = await asyncio.gather(*batch_tasks)
             citation_results.extend([r for r in batch_results if r is not None])
             
