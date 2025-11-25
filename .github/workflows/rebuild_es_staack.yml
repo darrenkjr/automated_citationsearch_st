@@ -1,0 +1,30 @@
+name: Trigger Google Cloud Run Rebuild
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger_downstream_build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure Git User
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "GitHub Actions Bot"
+          
+      - name: Trigger Empty Commit on ES Stack Repo
+        # Use the HTTPS URL and inject the PAT for authentication
+        run: |
+          es_stack_url="https://x-access-token:${{secrets.ES_STACK_REBUILD}}@github.com/darrenkjr/evidencesynthesis-stack.git"
+          git clone $es_stack_url target_repo_a
+          cd target_repo_a
+
+          git checkout main
+          
+          # Create the empty commit
+          git commit --allow-empty -m "REBUILD TRIGGER: Updated dependency from Repo ${{ github.repository }}"
+          
+          # Push the new commit to ES Stack Repo
+          git push
