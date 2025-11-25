@@ -19,7 +19,7 @@ class openalex_interface:
     def __init__(self, oa_email_address): 
 
         self.oa_email_address = oa_email_address
-        self.api_limit = AsyncLimiter(9,1) 
+        self.api_limit = AsyncLimiter(5,1) 
         self.pagination_limit = 200
         self.default_cursor = '*'
         self.batch_size = 10
@@ -171,7 +171,7 @@ class openalex_interface:
         
         #extract citation url path for each seed id (openalex id), and add to list
         seed_oa_id_list = self.openalex_results_df['id'].tolist()
-        citation_url_list = [self.citation_url.format(i,self.default_cursor,self.pagination_limit) for i in seed_oa_id_list]
+        citation_url_list = [self.citation_url.format(i,self.pagination_limit,self.default_cursor) for i in seed_oa_id_list]
         
 
         st.write('Retrieving citations for seed articles')

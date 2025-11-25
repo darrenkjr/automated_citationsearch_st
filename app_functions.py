@@ -48,7 +48,7 @@ def export_to_ris(results_df, api_choice):
         else:
             # Fallback: create new instance with email from secrets
             from libraries.openalex import openalex_interface
-            oa_email = st.secrets['oa_email_address']
+            oa_email = os.environ.get('oa_email_address') or st.secrets['oa_email_address']
             oa_interface = openalex_interface(oa_email)
         
         # Create temporary file for RIS generation
