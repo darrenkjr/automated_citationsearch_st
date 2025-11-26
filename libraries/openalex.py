@@ -275,14 +275,6 @@ class openalex_interface:
         )
         return author_data
 
-    def process_biblio_data(self, biblio_data):
-        '''Process biblio data from OpenAlex API response'''
-        biblio_data = pd.json_normalize(
-            biblio_data.apply(
-                lambda x: ast.literal_eval(str(x)) if pd.notna(x) and str(x) != 'nan' else {}
-            )
-        )
-        return biblio_data
 
     def process_primary_location_data(self, primary_location_data_row):
         '''Process primary location data from OpenAlex API response'''
@@ -325,13 +317,13 @@ class openalex_interface:
                 lambda x: self.process_primary_location_data(x))
             print('Extracting volume, issue, first page, and last page from biblio')
             entries['volume'] = entries['biblio'].apply(
-                lambda x: self.process_biblio_data(x).get('volume', '') if isinstance(x, dict) else '')
+                lambda x: x.get('volume', '') if isinstance(x, dict) else '')
             entries['issue'] = entries['biblio'].apply(
-                lambda x: self.process_biblio_data(x).get('issue', '') if isinstance(x, dict) else '')
+                lambda x: x.get('issue', '') if isinstance(x, dict) else '')
             entries['first_page'] = entries['biblio'].apply(
-                lambda x: self.process_biblio_data(x).get('start_page', '') if isinstance(x, dict) else '')
+                lambda x: x.get('start_page', '') if isinstance(x, dict) else '')
             entries['last_page'] = entries['biblio'].apply(
-                lambda x: self.process_biblio_data(x).get('end_page', '') if isinstance(x, dict) else '')
+                lambda x: x.get('end_page', '') if isinstance(x, dict) else '')
             
             # Rename columns
             column_mapping = {
