@@ -323,6 +323,15 @@ class openalex_interface:
             print('Extracting journal name from primary location')
             entries['journal_name'] = entries['primary_location'].apply(
                 lambda x: self.process_primary_location_data(x))
+            print('Extracting volume, issue, first page, and last page from biblio')
+            entries['volume'] = entries['biblio'].apply(
+                lambda x: self.process_biblio_data(x).get('volume', '') if isinstance(x, dict) else '')
+            entries['issue'] = entries['biblio'].apply(
+                lambda x: self.process_biblio_data(x).get('issue', '') if isinstance(x, dict) else '')
+            entries['first_page'] = entries['biblio'].apply(
+                lambda x: self.process_biblio_data(x).get('start_page', '') if isinstance(x, dict) else '')
+            entries['last_page'] = entries['biblio'].apply(
+                lambda x: self.process_biblio_data(x).get('end_page', '') if isinstance(x, dict) else '')
             
             # Rename columns
             column_mapping = {
@@ -342,9 +351,11 @@ class openalex_interface:
                 import ast
                 author_data = pd.json_normalize(
                     entries['authorship_data'].apply(
-                        lambda x: ast.literal_eval(str(x)) if pd.notna(x) and str(x) != 'nan' else {}
+                        lambda x: ast.literal_eval(str(x)) if pd.notna(x) and str(x) != 'nan' else x
                     )
                 )
+
+                print(author_data.head())
                 
                 if not author_data.empty:
                     # Process author names safely
