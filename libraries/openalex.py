@@ -287,7 +287,8 @@ class openalex_interface:
     def process_primary_location_data(self, primary_location_data_row):
         '''Process primary location data from OpenAlex API response'''
         if isinstance(primary_location_data_row, dict):
-            return primary_location_data_row.get('source',{}).get('display_name') 
+            source_data = primary_location_data_row.get('source')
+            return (source_data.get('display_name', '') if source_data else '')
         if isinstance(primary_location_data_row, str):
             try: 
                 primary_location_data_row = ast.literal_eval(primary_location_data_row)
