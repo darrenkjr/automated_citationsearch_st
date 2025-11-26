@@ -6,6 +6,7 @@ import platform
 import re 
 import rispy 
 import streamlit as st
+import ast
 #test openalex API functionality 
 
 
@@ -265,6 +266,39 @@ class openalex_interface:
         return openalex_results_full
 
 
+    def process_authorship_data(self, authorship_data):
+        '''Process authorship data from OpenAlex API response'''
+        author_data = pd.json_normalize(
+            authorship_data.apply(
+                lambda x: ast.literal_eval(str(x)) if pd.notna(x) and str(x) != 'nan' else {}
+            )
+        )
+        return author_data
+
+    def process_biblio_data(self, biblio_data):
+        '''Process biblio data from OpenAlex API response'''
+        biblio_data = pd.json_normalize(
+            biblio_data.apply(
+                lambda x: ast.literal_eval(str(x)) if pd.notna(x) and str(x) != 'nan' else {}
+            )
+        )
+        return biblio_data
+
+    def process_primary_location_data(self, primary_location_data_row):
+        '''Process primary location data from OpenAlex API response'''
+        if isinstance(primary_location_data_row, dict):
+            return primary_location_data_row.get('source',{}).get('display_name') 
+        if isinstance(primary_location_data_row, str):
+            try: 
+                primary_location_data_row = ast.literal_eval(primary_location_data_row)
+                if isinstance(primary_location_data_row, dict):
+                    return primary_location_data_row.get('source',{}).get('display_name')
+            except (ValueError, SyntaxError):
+                return ''
+        else: 
+            return ''
+
+
     def to_ris(self, df, path):
         """
         Export OpenAlex results to RIS format.
@@ -287,14 +321,7 @@ class openalex_interface:
             entries['database_provider'] = 'OpenAlex'
             print('Extracting journal name from primary location')
             entries['journal_name'] = entries['primary_location'].apply(
-                lambda x: x.get('source',{}).get('display_name') if isinstance(x, dict) else ''
-            )
-            print('Extracting volume, issue, first page, and last page from biblio')
-            entries[['volume','issue','first_page','last_page']] = entries['biblio'].apply(
-                lambda x: pd.json_normalize(x).loc[:,['volume','issue','start_page','end_page']] if x is not None else pd.Series([None]*4, index=['volume','issue','first_page','last_page'])
-            )
-
-            
+                lambda x: process_primary_location_data(x))
             
             # Rename columns
             column_mapping = {
