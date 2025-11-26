@@ -321,7 +321,7 @@ class openalex_interface:
             entries['database_provider'] = 'OpenAlex'
             print('Extracting journal name from primary location')
             entries['journal_name'] = entries['primary_location'].apply(
-                lambda x: process_primary_location_data(x))
+                lambda x: self.process_primary_location_data(x))
             
             # Rename columns
             column_mapping = {
