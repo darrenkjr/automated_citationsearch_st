@@ -320,10 +320,10 @@ class openalex_interface:
                 lambda x: x.get('volume', '') if isinstance(x, dict) else '')
             entries['issue'] = entries['biblio'].apply(
                 lambda x: x.get('issue', '') if isinstance(x, dict) else '')
-            entries['first_page'] = entries['biblio'].apply(
-                lambda x: x.get('start_page', '') if isinstance(x, dict) else '')
-            entries['last_page'] = entries['biblio'].apply(
-                lambda x: x.get('end_page', '') if isinstance(x, dict) else '')
+            entries['start_page'] = entries['biblio'].apply(
+                lambda x: x.get('first_page', '') if isinstance(x, dict) else '')
+            entries['end_page'] = entries['biblio'].apply(
+                lambda x: x.get('last_page', '') if isinstance(x, dict) else '')
             
             # Rename columns
             column_mapping = {
@@ -340,37 +340,55 @@ class openalex_interface:
             # Safely handle authorship data
             try:
                 # Use ast.literal_eval instead of eval for safety
-                import ast
-                author_data = pd.json_normalize(
-                    entries['authorship_data'].apply(
-                        lambda x: ast.literal_eval(str(x)) if pd.notna(x) and str(x) != 'nan' else x
-                    )
+                entries['parsed_authors'] = entries['authorships_data'].apply(
+                    lambda x: ast.literal_eval(str(x)) if pd.notna(x) and isinstance(x, str) else x
                 )
 
-                print(author_data.head())
-                
-                if not author_data.empty:
-                    # Process author names safely
-                    colname_range = range(1, len(author_data.columns) + 1)
-                    new_cols = ['A' + str(i) for i in colname_range]
-                    author_data.columns = new_cols
-                    
-                    author_names = author_data.apply(
-                        lambda x: x.str.get('author.display_name', ''), axis=1
-                    )
-                    author_names = author_names.apply(
-                        lambda x: [name for name in x.tolist() if pd.notna(name) and name != ''], axis=1
-                    )
-                    author_names.name = 'authors'
-                    
-                    # Join author names with entries
-                    entries_flat_authors = entries.join(author_names).reset_index(drop=True)
-                    entries_flat_authors = entries_flat_authors.drop(['authorship_data'], axis=1)
-                else:
-                    # No author data, create empty authors column
-                    entries_flat_authors = entries.copy()
-                    entries_flat_authors['authors'] = ''
-                    
+                exploded_authors = entries.explode('parsed_authors')
+                author_data_normalized = pd.json_normalize(exploded_authors['parsed_authors'])
+
+                exploded_authors = exploded_authors.reset_index()
+                author_data_normalized = author_data_normalized.reset_index(drop=True)
+                long_df = pd.concat([exploded_authors[['index']], author_data_normalized], axis=1)
+
+                long_df['sequential_rank'] = long_df.groupby('index').cumcount() + 1
+
+                # Calculate the total number of authors per article (needed for the 'last' author rank)
+                total_authors = long_df.groupby('index')['author_position'].transform('size')
+
+                # Define conditions and choices for the final rank (Vectorized Logic)
+                conditions = [
+                    long_df['author_position'] == 'first',
+                    long_df['author_position'] == 'last',
+                    long_df['author_position'] == 'middle'
+                ]
+
+                choices = [
+                    1,                                   # Rank 1 for 'first' (A1)
+                    total_authors,                       # Highest rank for 'last' (AX)
+                    long_df['sequential_rank']           # Sequential rank for 'middle' (A2, A3, etc.)
+                ]
+
+                # Assign the final rank using np.select
+                long_df['author_rank'] = np.select(conditions, choices, default=long_df['sequential_rank'])
+
+                # Pivot the table: Index = Article ID, Columns = Rank, Values = Author Name
+                wide_df = long_df.pivot_table(
+                    index='index',
+                    columns='author_rank',
+                    values='author.display_name',
+                    aggfunc='first'
+                )
+
+                # Rename columns to A1, A2, A3...
+                wide_df.columns = [f'A{int(col)}' for col in wide_df.columns]
+
+                # Final Join: Attach the new A1, A2... columns back to the original DataFrame
+                final_df = entries.join(wide_df)
+
+                # Drop temporary columns used in the process
+                final_df = final_df.drop(columns=['parsed_authors'])
+
             except Exception as e:
                 print(f"Warning: Error processing authors: {e}")
                 # Fallback: create empty authors column
