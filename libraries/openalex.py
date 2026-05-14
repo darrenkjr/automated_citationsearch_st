@@ -1,406 +1,222 @@
 import asyncio
-import aiohttp 
 import pandas as pd
-from aiolimiter import AsyncLimiter
-import platform 
-import re 
-import rispy 
 import streamlit as st
-import ast
-#test openalex API functionality 
+import pyalex
+from pyalex import Works
+import random
+from itertools import chain
+from libraries.oa_to_ris import format_ris
 
+def chunk_list(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
 
-class openalex_interface: 
-
+class openalex_interface:
     '''
-    Convenience class for interacting with the openalex api interface. Main functionality at the moment is to conduct snowballing / citation mining. Must provide a 
-    dataframe containing a column of article ids (either DOI or OpenAlex format).
+    Convenience class for interacting with the openalex api interface using pyalex.
+    Main functionality is to conduct snowballing / citation mining.
     '''
 
-    def __init__(self, oa_email_address): 
-
+    def __init__(self, oa_email_address):
         self.oa_email_address = oa_email_address
-        self.api_limit = AsyncLimiter(5,1) 
-        self.pagination_limit = 200
-        self.default_cursor = '*'
-        self.batch_size = 10
-        self.openalex_results_df = pd.DataFrame()
-        self.citation_url = 'https://api.openalex.org/works?filter=cites:{}&per-page={}&cursor={}'
+        pyalex.config.email = self.oa_email_address
+        self.batch_size = 50
+        self.semaphore = asyncio.Semaphore(8)
 
-        if platform.system()=='Windows':
-                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    def extract_id_from_url(self, url):
+        if pd.isna(url) or not isinstance(url, str):
+            return None
+        url = url.strip()
+        if url.startswith('https://openalex.org/'):
+            return url.replace('https://openalex.org/', '')
+        elif url.startswith('https://doi.org/'):
+            return url.replace('https://doi.org/', '')
+        return url
 
-    def chunk_id_list(self,id_list): 
-        '''OpenAlex has a limit of 50 ids per request, which can be concatenated together with the pipe operator.
-        This function takes a list containing article ids returns a list of chunks with maximum length of 50
-        '''
-        max_list_length = 50
-        id_chunks = [id_list[x:x+max_list_length] for x in range(0, len(id_list), max_list_length)]
-        id_chunks = ['|'.join(map(str, l)) for l in id_chunks]
-        return id_chunks 
+    async def fetch_citations_with_backoff(self, id_batch, max_retries=5):
+        """Fetch forward citations (works citing the seed batch)"""
+        async with self.semaphore:
+            retries = 0
+            while retries < max_retries:
+                try:
+                    def get_all_pages():
+                        local_records = {}
+                        page_query = Works().filter_or(cites=id_batch)
+                        for record in chain(*page_query.paginate(per_page=200, n_max=None)):
+                            local_records[record["id"]] = record
+                        return local_records
 
-    def decode_abstract(self, inverted_index_dict): 
-        '''Takes the inverted index dictionary from the OpenAlex API and returns abstract in human readable form'''
-        abstract_index = {}
-        abstract_list = []
-        
-        for j in inverted_index_dict:
-            if j is None:
-                abstract_list.append('No Abstract Found')
-            else: 
-                for k, vlist in j.items():
-                    for v in vlist:
-                        abstract_index[v] = k
-                        abstract = ' '.join(abstract_index[k] for k in sorted(abstract_index.keys()))
-                abstract_list.append(abstract)
-        return abstract_list
-
-    def generate_default_api_path(self,id): 
-        '''Checks if id is a DOI or OpenAlex ID and returns appropriate API endpoint(s). Pagination limit is set to 200, but this can
-        be modified inside this function if needed.
-        '''
-
-        openalex_api_path_list = [] 
-
-        for i in id: 
-            if i is None or not i: 
-                openalex_api_path = None
-                return None
-            elif i and i.startswith('10.'):
-                openalex_api_endpoint = 'https://api.openalex.org/works?filter=doi:{}&per-page={}&cursor={}' 
-                openalex_api_path = openalex_api_endpoint.format(i,self.pagination_limit,self.default_cursor)
-                openalex_api_path_list.append(openalex_api_path)
-            elif i and i.startswith('https://openalex.org/W'): 
-                openalex_api_endpoint = 'https://api.openalex.org/works?filter=openalex:{}&per-page={}&cursor={}'
-                openalex_api_path = openalex_api_endpoint.format(i,self.pagination_limit,self.default_cursor)
-                openalex_api_path_list.append(openalex_api_path)
-        print('wait')
-        return openalex_api_path_list
-
-
+                    batch_records = await asyncio.to_thread(get_all_pages)
+                    return batch_records
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    if any(err in error_msg for err in ['429', '503', '502']):
+                        wait_time = (2 ** retries) + random.uniform(0, 1)
+                        print(f"Rate limited. Retrying in {wait_time:.2f}s...")
+                        await asyncio.sleep(wait_time)
+                        retries += 1
+                    else:
+                        print(f"Error fetching citations: {error_msg}")
+                        return {}
                         
-    async def retrieve_references(self, article_df, progress_bar): 
+            return {}
 
-        '''retrieves references from a given list of article IDs'''
+    async def fetch_works_with_backoff(self, id_batch, max_retries=5):
+        """Fetch specific works by ID"""
+        dois = [i for i in id_batch if i.startswith('10.')]
+        oa_ids = [i for i in id_batch if i.startswith('W')]
         
-        backward_snowball_tasks = []
-        #divide entire ID list into list containing segments that are 50 entries long (list of lists) 
+        async with self.semaphore:
+            retries = 0
+            while retries < max_retries:
+                try:
+                    def get_all_pages():
+                        local_records = {}
+                        if dois:
+                            page_query = Works().filter_or(doi=dois)
+                            for record in chain(*page_query.paginate(per_page=200, n_max=None)):
+                                local_records[record["id"]] = record
+                        if oa_ids:
+                            page_query = Works().filter_or(openalex=oa_ids)
+                            for record in chain(*page_query.paginate(per_page=200, n_max=None)):
+                                local_records[record["id"]] = record
+                        return local_records
+
+                    batch_records = await asyncio.to_thread(get_all_pages)
+                    return batch_records
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    if any(err in error_msg for err in ['429', '503', '502']):
+                        wait_time = (2 ** retries) + random.uniform(0, 1)
+                        print(f"Rate limited. Retrying in {wait_time:.2f}s...")
+                        await asyncio.sleep(wait_time)
+                        retries += 1
+                    else:
+                        print(f"Error fetching works: {error_msg}")
+                        return {}
+                        
+            return {}
+
+    async def fetch_seed_articles(self, article_df):
+        """Fetch the seed articles to standardize IDs to OpenAlex IDs and get their references"""
+        id_list = article_df['seed_Id'].dropna().tolist()
+        clean_ids = [self.extract_id_from_url(i) for i in id_list]
+        clean_ids = [i for i in clean_ids if i is not None]
         
-        completed_tasks = 0 
-        #obtain paper details for each individual seed id chunk (50 seed ids at a time)
-        async def fetch_with_progress(url): 
-            nonlocal completed_tasks 
-            result = await self.retrieve_paperdetails([url])
-            completed_tasks += 1
-            progress = completed_tasks / total_tasks
-            progress_bar.progress(progress, text=f"Retrieving references: {completed_tasks}/{total_tasks} ({progress:.1%})")
-            return result
-
-        if self.openalex_results_df.empty: 
-            seed_detail_tasks = [] 
-            id_list = article_df['seed_Id'].tolist()
-            id_chunks = [self.chunk_id_list(id_list)]
-            total_tasks = len(id_list)
-            for i in id_chunks:
-                openalex_api_path_list = self.generate_default_api_path(i)
-                seed_detail_tasks.append(self.retrieve_paperdetails(openalex_api_path_list))
-
-            st.write('Retrieving paper details for seed articles and extract references')
-            openalex_results = await asyncio.gather(*seed_detail_tasks)
-            openalex_results_df = openalex_results[0]
-
-        #retrieve referenced works for each seed id (openalex id)
-        references_openalex = self.openalex_results_df[['id','referenced_works']].copy()
-        #for each batch of openalex ids, perform backwards snowballing 
-        references_openalex_chunked = references_openalex.apply(lambda x: self.chunk_id_list(x['referenced_works']), axis=1)
-
-        st.write('Retrieving paper details for references')
-        references_results = [] 
-        total_tasks = sum(len(self.generate_default_api_path(chunk)) for chunk in references_openalex_chunked)
-        completed_tasks = 0
-        progress_bar.progress(0, text=f"Retrieving references: 0/{total_tasks} (0%)")
-        for j in references_openalex_chunked:
-            references_api_path_list = self.generate_default_api_path(j)
-            for i in range(0, len(references_api_path_list), self.batch_size):
-                batch = references_api_path_list[i:i+self.batch_size]
-                batch_tasks = [fetch_with_progress(url) for url in batch]
-                batch_results = await asyncio.gather(*batch_tasks)
-                references_results.extend([r for r in batch_results if r is not None])
-
-
-        final_reference_results = pd.concat(references_results)
-        #change column names from id to paper_Id to match semantic scholar interface 
-        final_reference_results.rename(columns={'id':'paper_Id'}, inplace=True)
-        return final_reference_results
-
-    async def retrieve_citations(self,article_df): 
-
-        '''retrieve citations from a given list of article IDs. OpenAlex structure is a bit different as citation urls are their own thing'''
-
-        seed_detail_tasks = [] 
-        citation_results_full = pd.DataFrame()
-        id_list = article_df['seed_Id'].tolist()
-        id_chunks = [self.chunk_id_list(id_list)]
-
-        for i in id_chunks: 
-            openalex_api_path_list = self.generate_default_api_path(i)
+        seed_batches = list(chunk_list(clean_ids, self.batch_size))
+        seed_tasks = [self.fetch_works_with_backoff(batch) for batch in seed_batches]
+        
+        all_seed_records = {}
+        for task in asyncio.as_completed(seed_tasks):
+            batch_result = await task
+            all_seed_records.update(batch_result)
             
+        return all_seed_records
 
-        total_seed_article_tasks = len(openalex_api_path_list)
-        completed_seed_article_tasks = 0
-        st.write('Retrieving paper details for seed articles initially in batches. Each batch contains max 50 seed ids.')
-        seed_progress_bar = st.progress(0, text="Initializing seed article retrieval...")
-        #obtain paper details for each seed id from openalex 
-        async def fetch_seed_with_progress(url): 
-            nonlocal completed_seed_article_tasks 
-            result = await self.retrieve_paperdetails([url])
-            completed_seed_article_tasks += 1
-            progress = completed_seed_article_tasks / total_seed_article_tasks
-            seed_progress_bar.progress(progress, text=f"Retrieving seed article details: {completed_seed_article_tasks}/{total_seed_article_tasks} ({progress:.1%})")
-            return result
-        #batching 
-        openalex_results = []
-        for i in range(0, len(openalex_api_path_list), self.batch_size):
-            batch = openalex_api_path_list[i:i+self.batch_size]
-            batch_tasks = [fetch_seed_with_progress(url) for url in batch]
-            batch_results = await asyncio.gather(*batch_tasks)
-            openalex_results.extend([r for r in batch_results if r is not None])
-
-        self.openalex_results_df = pd.concat(openalex_results)
-
+    async def retrieve_citations(self, article_df):
+        st.write('Retrieving citations for seed articles...')
+        citations_progress = st.progress(0, text="Fetching seed articles to identify OpenAlex IDs...")
         
-        #extract citation url path for each seed id (openalex id), and add to list
-        seed_oa_id_list = self.openalex_results_df['id'].tolist()
-        citation_url_list = [self.citation_url.format(i,self.pagination_limit,self.default_cursor) for i in seed_oa_id_list]
+        # Fetch seeds first to ensure we have pure OpenAlex IDs
+        all_seed_records = await self.fetch_seed_articles(article_df)
         
-
-        st.write('Retrieving citations for seed articles')
+        # Use the OpenAlex IDs (e.g. W12345678)
+        oa_ids = [self.extract_id_from_url(record['id']) for record in all_seed_records.values()]
+        oa_ids = [i for i in oa_ids if i is not None]
         
-        #reset tasks number
-        #reset progress bar 
-        completed_citation_tasks = 0
-        total_citation_tasks = len(citation_url_list)
-        citation_progress_bar = st.progress(0, text="Initializing citation retrieval...")
-        async def fetch_citation_with_progress(url): 
-            nonlocal completed_citation_tasks 
-            result = await self.retrieve_paperdetails([url])
-            completed_citation_tasks += 1
-            progress = completed_citation_tasks / total_citation_tasks
-            citation_progress_bar.progress(progress, text=f"Retrieving citations: {completed_citation_tasks}/{total_citation_tasks} ({progress:.1%})")
-            return result
+        batches = list(chunk_list(oa_ids, self.batch_size))
+        total_batches = len(batches)
+        
+        all_citation_records = {}
+        
+        tasks = [self.fetch_citations_with_backoff(batch) for batch in batches]
+        
+        completed = 0
+        for task in asyncio.as_completed(tasks):
+            batch_result = await task
+            all_citation_records.update(batch_result)
+            completed += 1
+            progress = completed / total_batches if total_batches > 0 else 1.0
+            citations_progress.progress(progress, text=f"Retrieving citations: {completed}/{total_batches} batches ({progress:.1%})")
 
-        citation_results = []
-        for i in range(0, len(citation_url_list), self.batch_size):
-            batch = citation_url_list[i:i+self.batch_size]
-            batch_tasks = [fetch_citation_with_progress(url) for url in batch]
-            batch_results = await asyncio.gather(*batch_tasks)
-            citation_results.extend([r for r in batch_results if r is not None])
+        return self.records_to_dataframe(all_citation_records)
+
+    async def retrieve_references(self, article_df, progress_bar):
+        st.write('Retrieving references for seed articles...')
+        
+        progress_bar.progress(0, text="Fetching seed articles to extract reference lists...")
+        all_seed_records = await self.fetch_seed_articles(article_df)
             
-        citation_results_full = pd.concat(citation_results)
-        #change column names from id to paper_Id to match semantic scholar interface 
-        citation_results_full.rename(columns={'id':'paper_Id'}, inplace=True)
-        return citation_results_full
-    
-    async def retrieve_paperdetails(self,api_path_list): 
-
-        ''' Takes a list of OpenAlex API URLs and returns OpenAlex api response as a dataframe.'''
-        openalex_results_full = pd.DataFrame() 
-        cursor = self.default_cursor
-        for api_path in api_path_list:
+        # Extract referenced works
+        referenced_works = set()
+        for record in all_seed_records.values():
+            refs = record.get('referenced_works', [])
+            referenced_works.update(refs)
             
-            async with aiohttp.ClientSession() as session:
-                # await self.semaphore.acquire()
-                async with self.api_limit: 
-                    async with session.get(api_path, headers={"mailto":self.oa_email_address}) as resp: 
-                        if resp.status != 200: 
-                            print('Appropriate Response not received for path:', api_path)
-                            print('Response status:', resp.status)
-                            print('Response reason:', resp.reason)
+        referenced_works_list = list(referenced_works)
+        ref_clean_ids = [self.extract_id_from_url(i) for i in referenced_works_list]
+        ref_clean_ids = [i for i in ref_clean_ids if i is not None]
+        
+        ref_batches = list(chunk_list(ref_clean_ids, self.batch_size))
+        total_batches = len(ref_batches)
+        
+        all_reference_records = {}
+        tasks = [self.fetch_works_with_backoff(batch) for batch in ref_batches]
+        
+        completed = 0
+        if total_batches == 0:
+            progress_bar.progress(1.0, text="No references found for seed articles.")
+        
+        for task in asyncio.as_completed(tasks):
+            batch_result = await task
+            all_reference_records.update(batch_result)
+            completed += 1
+            progress = completed / total_batches if total_batches > 0 else 1.0
+            progress_bar.progress(progress, text=f"Retrieving references: {completed}/{total_batches} batches ({progress:.1%})")
 
-                        elif resp.status == 200: 
-                            print('Response received for path:', api_path)
-                            content = await resp.json()
-                            openalex_results = pd.json_normalize(content, record_path = 'results', max_level=0)
-                            
-                            resp_meta = content.get('meta')
+        return self.records_to_dataframe(all_reference_records)
 
-                            retrieved_abstract_inverted = openalex_results['abstract_inverted_index']
-                            abstract_list = self.decode_abstract(retrieved_abstract_inverted)
-                            openalex_results.drop(columns=['abstract_inverted_index'], inplace=True)
-                            openalex_results['abstract'] = abstract_list
-                            openalex_results_full = pd.concat([openalex_results_full,openalex_results])
-                            print('Shape of results (after first page):', openalex_results_full.shape)
-                            #pagination handling 
-                            
-                            # api_path = re.sub(r"(?<=cursor\=).*$",cursor, api_path)
-                            while cursor is not None:
-                                print('Pagination detected, retrieving next page')
-                                async with self.api_limit:
-                                    cursor = resp_meta['next_cursor']
-                                    api_path = re.sub(r"(?<=cursor\=).*$",cursor, api_path)
-                                    print('Pagination API path:', api_path)
-                                    async with session.get(api_path, headers={"mailto":self.oa_email_address}) as pagination_resp: 
-                                        if pagination_resp.status == 200: 
-                                            print('Pagination Response received')
-                                            pagination_content = await pagination_resp.json()
+    def records_to_dataframe(self, records_dict):
+        """Convert OpenAlex raw dictionaries into a DataFrame with required columns for the app."""
+        data = []
+        for paper_id, record in records_dict.items():
+            # Process authors into a neat string for CSV export display
+            authorships = record.get('authorships', [])
+            author_names = [a.get('author', {}).get('display_name') for a in authorships if a.get('author')]
+            author_str = "; ".join(filter(None, author_names))
 
-                                            openalex_paginated_results = pd.json_normalize(pagination_content, record_path = 'results', max_level=0)
-                                            print('Checking if pagination results are empty:', openalex_paginated_results.empty)
-                                            if openalex_paginated_results.empty == True:
-                                                print('Pagination results are empty, breaking loop')
-                                                cursor = None
-                                            elif openalex_paginated_results.empty == False:
-                                                print('Pagination results are not empty, continuing loop')
-                                                resp_meta = pagination_content.get('meta')
-                                                retrieved_abstract_inverted = openalex_paginated_results['abstract_inverted_index']
-                                                abstract_list = self.decode_abstract(retrieved_abstract_inverted)
-                                                openalex_paginated_results.drop(columns=['abstract_inverted_index'], inplace=True)
-                                                openalex_paginated_results['abstract'] = abstract_list
-                                                openalex_results_full = pd.concat([openalex_results_full,openalex_paginated_results])
-                                                print('Shape of results being added with pagination:', openalex_paginated_results.shape)
-                                                print('Shape of consolidated results (afer pagination):', openalex_results_full.shape)
-                                            
-                                                cursor = resp_meta['next_cursor']
-
-                                
-        return openalex_results_full
-
-
-    def process_authorship_data(self, authorship_data):
-        '''Process authorship data from OpenAlex API response'''
-        author_data = pd.json_normalize(
-            authorship_data.apply(
-                lambda x: ast.literal_eval(str(x)) if pd.notna(x) and str(x) != 'nan' else {}
-            )
-        )
-        return author_data
-
-
-    def process_primary_location_data(self, primary_location_data_row):
-        '''Process primary location data from OpenAlex API response'''
-        if isinstance(primary_location_data_row, dict):
-            source_data = primary_location_data_row.get('source')
-            return (source_data.get('display_name', '') if source_data else '')
-        if isinstance(primary_location_data_row, str):
-            try: 
-                primary_location_data_row = ast.literal_eval(primary_location_data_row)
-                if isinstance(primary_location_data_row, dict):
-                    return primary_location_data_row.get('source',{}).get('display_name')
-            except (ValueError, SyntaxError):
-                return ''
-        else: 
-            return ''
-
+            row = {
+                'paper_Id': paper_id,
+                'title': record.get('title'),
+                'doi': record.get('doi'),
+                'publication_year': record.get('publication_year'),
+                'type': record.get('type'),
+                'authors': author_str,
+                'raw_oa_dict': record
+            }
+            data.append(row)
+        
+        if not data:
+            return pd.DataFrame(columns=['paper_Id', 'title', 'doi', 'publication_year', 'type', 'authors', 'raw_oa_dict'])
+            
+        return pd.DataFrame(data)
 
     def to_ris(self, df, path):
         """
         Export OpenAlex results to RIS format.
         """
         try:
-            result_df_openalex = df.copy()
-            
-            # Check if required columns exist
-            required_columns = ['paper_Id', 'doi', 'title', 'abstract', 'publication_year', 'publication_date', 'authorships', 'primary_location', 'type', 'biblio']
-            missing_columns = [col for col in required_columns if col not in result_df_openalex.columns]
-            
-            if missing_columns:
-                print(f"Warning: Missing columns: {missing_columns}")
-                # Fill missing columns with empty values
-                for col in missing_columns:
-                    result_df_openalex[col] = ''
-            
-            # Select and rename columns safely
-            entries = result_df_openalex[required_columns].copy()
-            entries['database_provider'] = 'OpenAlex'
-            print('Extracting journal name from primary location')
-            entries['journal_name'] = entries['primary_location'].apply(
-                lambda x: self.process_primary_location_data(x))
-            print('Extracting volume, issue, first page, and last page from biblio')
-            entries['volume'] = entries['biblio'].apply(
-                lambda x: x.get('volume', '') if isinstance(x, dict) else '')
-            entries['issue'] = entries['biblio'].apply(
-                lambda x: x.get('issue', '') if isinstance(x, dict) else '')
-            entries['start_page'] = entries['biblio'].apply(
-                lambda x: x.get('first_page', '') if isinstance(x, dict) else '')
-            entries['end_page'] = entries['biblio'].apply(
-                lambda x: x.get('last_page', '') if isinstance(x, dict) else '')
-            
-            # Rename columns
-            column_mapping = {
-                'type': 'type_of_reference',
-                'publication_year': 'year',
-                'publication_date': 'date',
-                'authorships': 'authorship_data',
-                'paper_Id': 'id'
-            }
-            entries.rename(columns=column_mapping, inplace=True)
-            
             print('Writing RIS File..')
+            ris_content = ""
+            for _, row in df.iterrows():
+                # Extract the raw dictionary saved during retrieval
+                if 'raw_oa_dict' in row and isinstance(row['raw_oa_dict'], dict):
+                    ris_content += format_ris(row['raw_oa_dict']) + "\n"
             
-            # Safely handle authorship data
-            try:
-                # Use ast.literal_eval instead of eval for safety
-                entries['parsed_authors'] = entries['authorships_data'].apply(
-                    lambda x: ast.literal_eval(str(x)) if pd.notna(x) and isinstance(x, str) else x
-                )
-
-                exploded_authors = entries.explode('parsed_authors')
-                author_data_normalized = pd.json_normalize(exploded_authors['parsed_authors'])
-
-                exploded_authors = exploded_authors.reset_index()
-                author_data_normalized = author_data_normalized.reset_index(drop=True)
-                long_df = pd.concat([exploded_authors[['index']], author_data_normalized], axis=1)
-
-                long_df['sequential_rank'] = long_df.groupby('index').cumcount() + 1
-
-                # Calculate the total number of authors per article (needed for the 'last' author rank)
-                total_authors = long_df.groupby('index')['author_position'].transform('size')
-
-                # Define conditions and choices for the final rank (Vectorized Logic)
-                conditions = [
-                    long_df['author_position'] == 'first',
-                    long_df['author_position'] == 'last',
-                    long_df['author_position'] == 'middle'
-                ]
-
-                choices = [
-                    1,                                   # Rank 1 for 'first' (A1)
-                    total_authors,                       # Highest rank for 'last' (AX)
-                    long_df['sequential_rank']           # Sequential rank for 'middle' (A2, A3, etc.)
-                ]
-
-                # Assign the final rank using np.select
-                long_df['author_rank'] = np.select(conditions, choices, default=long_df['sequential_rank'])
-
-                # Pivot the table: Index = Article ID, Columns = Rank, Values = Author Name
-                wide_df = long_df.pivot_table(
-                    index='index',
-                    columns='author_rank',
-                    values='author.display_name',
-                    aggfunc='first'
-                )
-
-                # Rename columns to A1, A2, A3...
-                wide_df.columns = [f'A{int(col)}' for col in wide_df.columns]
-
-                # Final Join: Attach the new A1, A2... columns back to the original DataFrame
-                final_df = entries.join(wide_df)
-
-                # Drop temporary columns used in the process
-                final_df = final_df.drop(columns=['parsed_authors'])
-
-            except Exception as e:
-                print(f"Warning: Error processing authors: {e}")
-                # Fallback: create empty authors column
-                entries_flat_authors = entries.copy()
-                entries_flat_authors['authors'] = ''
-            
-            # Convert to records for rispy
-            entries_ris = entries_flat_authors.to_dict('records')
-            
-            # Write RIS file
-            with open(path, 'w', encoding='utf-8') as f:
-                rispy.dump(entries_ris, f)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(ris_content)
                 
             print(f"RIS file successfully written to: {path}")
             return True

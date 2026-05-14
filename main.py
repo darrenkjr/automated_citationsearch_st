@@ -4,6 +4,7 @@ from demo.demo_module import demo_article
 from app_functions import run_handsearch
 import streamlit as st
 import asyncio
+from libraries.oa_to_ris import *
 
 #defining streamlit parameters
 demo_cls = demo_article()
@@ -77,7 +78,8 @@ if not input_df.empty:
         st.session_state.results = asyncio.run(run_handsearch(api, input_df, st.session_state.iter_num))
         
         st.write("Results:")
-        st.dataframe(st.session_state.results)
+        display_df = st.session_state.results.drop(columns=['raw_oa_dict'], errors='ignore')
+        st.dataframe(display_df)
 else: 
     st.button('Run citation search', disabled=True)
 
@@ -96,10 +98,11 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     
     with col1:
         # CSV download (always available)
+        csv_df = st.session_state.results.drop(columns=['raw_oa_dict'], errors='ignore')
         st.download_button(
             disabled=False,
             label='Download as CSV',
-            data=st.session_state.results.to_csv().encode('utf-8'),
+            data=csv_df.to_csv(index=False).encode('utf-8'),
             file_name='automated_citation_search_results.csv',
             mime='text/csv',
             help='Download results as CSV file (compatible with Excel, Google Sheets, etc.)'
