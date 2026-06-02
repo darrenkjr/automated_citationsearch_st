@@ -69,6 +69,8 @@ if input_option == "Upload your own CSV file":
             
         if set(input_df.columns) != set(['seed_Id', 'seed_Title']):
             st.error("Error: Your CSV file doesn't have the correct columns. Please ensure it has 'seed_Id' and 'seed_Title' columns.")
+            st.write("Columns detected: ", input_df.columns)
+            
         else:
             st.write("Uploaded file preview:")
             st.dataframe(input_df)
