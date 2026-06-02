@@ -9,10 +9,11 @@ from libraries.semanticscholar import semanticscholar_interface
 
 class automated_handsearch: 
 
-    def __init__(self,api): 
+    def __init__(self, api, filters=None): 
 
         self.error_log = []
         self.api = api
+        self.filters = filters
 
         if api == 'Semantic Scholar':
             #get api key from streamlit secretes 
@@ -22,7 +23,7 @@ class automated_handsearch:
 
         if api == 'OpenAlex':
             oa_email_address = os.environ.get('oa_email_address') or st.secrets['oa_email_address']
-            self.api_interface = openalex_interface(oa_email_address)
+            self.api_interface = openalex_interface(oa_email_address, filters=self.filters)
         
     async def run_citation_search(self, article_df): 
 

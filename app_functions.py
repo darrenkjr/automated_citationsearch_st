@@ -5,7 +5,7 @@ import streamlit as st
 import tempfile
 import os 
 
-async def run_handsearch(api,seed_article_df, iter_num): 
+async def run_handsearch(api, seed_article_df, iter_num, filters=None): 
 
     
     
@@ -14,7 +14,7 @@ async def run_handsearch(api,seed_article_df, iter_num):
     except: 
         st.write('Waiting on user input')
 
-    handsearch_instance = automated_handsearch(api)
+    handsearch_instance = automated_handsearch(api, filters=filters)
 
     #number of iterations 
     #placeholder - future implementation will allow for multiple iterations, by wrapping this in a loop

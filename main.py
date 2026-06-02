@@ -1,5 +1,6 @@
 import pandas as pd
 import re
+import datetime
 from demo.demo_module import demo_article
 from app_functions import run_handsearch
 import streamlit as st
@@ -27,9 +28,13 @@ st.warning('Please note that there are rate limits on the APIs we are using. If 
 st.write('---')
 st.write('### Step 1: Select your database of choice')
 
-st.warning('Semantic Scholar support is unstable at the moment. Please use OpenAlex for now.')
-api =st.radio(
-    "Choice of database:", ('OpenAlex','Semantic Scholar'))
+col1, col2 = st.columns(2)
+with col1:
+    st.button("OpenAlex (Active)", use_container_width=True, type="primary")
+with col2:
+    st.button("Semantic Scholar (Disabled)", use_container_width=True, disabled=True, help="Semantic Scholar is currently disabled.")
+
+api = 'OpenAlex'
 
 
 st.write('---')
@@ -47,13 +52,13 @@ st.write('*For best results, choose articles that you would expect to be influen
 
 input_option = st.radio(
     "Choose your input method:",
-    ("Upload your own CSV file", "Use demo articles")
+    ("Upload your own CSV file", "Upload your own RIS file", "Use demo articles")
 )
 
 input_df = pd.DataFrame()
 
 if input_option == "Upload your own CSV file":
-    uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_input')
+    uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_input', type=['csv'])
     if uploaded_file is not None:
         input_df = pd.read_csv(uploaded_file)
         if set(input_df.columns) != set(['seed_Id', 'seed_Title']):
@@ -61,6 +66,43 @@ if input_option == "Upload your own CSV file":
         else:
             st.write("Uploaded file preview:")
             st.dataframe(input_df)
+elif input_option == "Upload your own RIS file":
+    uploaded_file = st.file_uploader('Upload RIS file', key='user_starting_article_input_ris', type=['ris', 'txt'])
+    if uploaded_file is not None:
+        import rispy
+        import io
+        
+        try:
+            # Read and parse RIS file
+            stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8", errors='replace'))
+            entries = rispy.load(stringio)
+            
+            # Extract DOI and Title
+            data = []
+            for entry in entries:
+                doi = entry.get('doi', '')
+                title = entry.get('title', '')
+                
+                # Clean up the DOI if it's formatted as a URL
+                if doi and doi.startswith('http'):
+                    # e.g., https://doi.org/10.1016/j...
+                    doi = doi.replace('https://doi.org/', '').replace('http://dx.doi.org/', '')
+                
+                # We need an ID. DOI is required for citation searching if no OpenAlex ID is present.
+                if doi:
+                    data.append({'seed_Id': doi, 'seed_Title': title})
+            
+            input_df = pd.DataFrame(data)
+            
+            if input_df.empty:
+                st.error("No valid DOIs found in the uploaded RIS file. Automated citation search currently requires DOIs to identify seed articles.")
+            else:
+                st.success(f"Successfully extracted {len(input_df)} articles with DOIs from the RIS file.")
+                st.write("Extracted file preview:")
+                st.dataframe(input_df)
+                
+        except Exception as e:
+            st.error(f"Error parsing RIS file: {str(e)}")
 elif input_option == "Use demo articles":
     input_df = demo_cls.load_seed_article_data()
     st.write("Demo articles:")
@@ -70,12 +112,52 @@ elif input_option == "Use demo articles":
 st.write('---') 
 st.write('### Step 3 : Conduct automated citation searching and deduplication based on your initial set of articles.')
 
-if not input_df.empty:
+# Search filters expander
+filters = {}
+with st.expander("🔍 Search Filters (Optional)", expanded=False):
+    st.write("Apply filters to narrow down the retrieved citations and references. (Note: These filters are applied to OpenAlex; Semantic Scholar remains unfiltered).")
+    
+    # 1. Date Filter
+    enable_date_filter = st.checkbox("Filter by Publication Date (From)", value=False, help="Only retrieve papers published on or after the specified date.")
+    if enable_date_filter:
+        from_date = st.date_input("From Publication Date", value=datetime.date(2022, 8, 1))
+        filters['from_publication_date'] = from_date.strftime("%Y-%m-%d")
+        
+    # 2. Language Filter
+    enable_lang_filter = st.checkbox("Filter by Language", value=False, help="Only retrieve papers in the specified language.")
+    if enable_lang_filter:
+        lang_options = {
+            "English (en)": "en",
+            "Spanish (es)": "es",
+            "French (fr)": "fr",
+            "German (de)": "de",
+            "Chinese (zh)": "zh",
+            "Other (specify code)": "custom"
+        }
+        selected_lang = st.selectbox("Select Language", list(lang_options.keys()))
+        if lang_options[selected_lang] == "custom":
+            custom_lang = st.text_input("Enter 2-letter language code (e.g. en, es, fr):", value="en", max_chars=2)
+            filters['language'] = custom_lang.strip().lower()
+        else:
+            filters['language'] = lang_options[selected_lang]
+            
+    # 3. Work Type Filter
+    enable_type_filter = st.checkbox("Filter by Work Type", value=False, help="Restrict retrieval to certain types of works (e.g., articles).")
+    if enable_type_filter:
+        type_options = ["article", "book-chapter", "book", "preprint", "dataset", "report"]
+        filters['type'] = st.selectbox("Select Work Type", type_options, index=0)
+    else:
+        filters['type'] = "Any"
+        
+    # 4. Require Abstract
+    require_abstract = st.checkbox("Require Abstract", value=False, help="Only retrieve papers that have an abstract available.")
+    filters['has_abstract'] = True if require_abstract else None
 
+if not input_df.empty:
     if st.button('Run citation search', disabled=False):
         #placeholder for iteration number - multiple iterations are coming soon (but this will require some extensive testing)
         st.session_state.iter_num = 1
-        st.session_state.results = asyncio.run(run_handsearch(api, input_df, st.session_state.iter_num))
+        st.session_state.results = asyncio.run(run_handsearch(api, input_df, st.session_state.iter_num, filters=filters))
         
         st.write("Results:")
         display_df = st.session_state.results.drop(columns=['raw_oa_dict'], errors='ignore')

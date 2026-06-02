@@ -4,6 +4,7 @@ import streamlit as st
 import pyalex
 from pyalex import Works
 import random
+import os
 from itertools import chain
 from libraries.oa_to_ris import format_ris
 
@@ -17,11 +18,13 @@ class openalex_interface:
     Main functionality is to conduct snowballing / citation mining.
     '''
 
-    def __init__(self, oa_email_address):
-        self.oa_email_address = oa_email_address
-        pyalex.config.email = self.oa_email_address
+    def __init__(self, oa_email_address=None, filters=None):
+        self.oa_email_address = oa_email_address or os.environ.get('oa_email_address')
+        if self.oa_email_address:
+            pyalex.config.email = self.oa_email_address
         self.batch_size = 50
         self.semaphore = asyncio.Semaphore(8)
+        self.filters = filters or {}
 
     def extract_id_from_url(self, url):
         if pd.isna(url) or not isinstance(url, str):
@@ -33,8 +36,19 @@ class openalex_interface:
             return url.replace('https://doi.org/', '')
         return url
 
-    async def fetch_citations_with_backoff(self, id_batch, max_retries=5):
+    async def fetch_citations_with_backoff(self, id_batch, max_retries=5, apply_filters=True):
         """Fetch forward citations (works citing the seed batch)"""
+        query_filters = {}
+        if apply_filters and self.filters:
+            if self.filters.get('from_publication_date'):
+                query_filters['from_publication_date'] = self.filters['from_publication_date']
+            if self.filters.get('has_abstract') is not None:
+                query_filters['has_abstract'] = self.filters['has_abstract']
+            if self.filters.get('type') and self.filters['type'] != 'Any':
+                query_filters['type'] = self.filters['type']
+            if self.filters.get('language'):
+                query_filters['language'] = self.filters['language']
+
         async with self.semaphore:
             retries = 0
             while retries < max_retries:
@@ -42,6 +56,8 @@ class openalex_interface:
                     def get_all_pages():
                         local_records = {}
                         page_query = Works().filter_or(cites=id_batch)
+                        if query_filters:
+                            page_query = page_query.filter(**query_filters)
                         for record in chain(*page_query.paginate(per_page=200, n_max=None)):
                             local_records[record["id"]] = record
                         return local_records
@@ -62,10 +78,21 @@ class openalex_interface:
                         
             return {}
 
-    async def fetch_works_with_backoff(self, id_batch, max_retries=5):
+    async def fetch_works_with_backoff(self, id_batch, max_retries=5, apply_filters=False):
         """Fetch specific works by ID"""
         dois = [i for i in id_batch if i.startswith('10.')]
         oa_ids = [i for i in id_batch if i.startswith('W')]
+        
+        query_filters = {}
+        if apply_filters and self.filters:
+            if self.filters.get('from_publication_date'):
+                query_filters['from_publication_date'] = self.filters['from_publication_date']
+            if self.filters.get('has_abstract') is not None:
+                query_filters['has_abstract'] = self.filters['has_abstract']
+            if self.filters.get('type') and self.filters['type'] != 'Any':
+                query_filters['type'] = self.filters['type']
+            if self.filters.get('language'):
+                query_filters['language'] = self.filters['language']
         
         async with self.semaphore:
             retries = 0
@@ -75,10 +102,14 @@ class openalex_interface:
                         local_records = {}
                         if dois:
                             page_query = Works().filter_or(doi=dois)
+                            if query_filters:
+                                page_query = page_query.filter(**query_filters)
                             for record in chain(*page_query.paginate(per_page=200, n_max=None)):
                                 local_records[record["id"]] = record
                         if oa_ids:
                             page_query = Works().filter_or(openalex=oa_ids)
+                            if query_filters:
+                                page_query = page_query.filter(**query_filters)
                             for record in chain(*page_query.paginate(per_page=200, n_max=None)):
                                 local_records[record["id"]] = record
                         return local_records
@@ -163,7 +194,7 @@ class openalex_interface:
         total_batches = len(ref_batches)
         
         all_reference_records = {}
-        tasks = [self.fetch_works_with_backoff(batch) for batch in ref_batches]
+        tasks = [self.fetch_works_with_backoff(batch, apply_filters=True) for batch in ref_batches]
         
         completed = 0
         if total_batches == 0:
