@@ -60,7 +60,13 @@ input_df = pd.DataFrame()
 if input_option == "Upload your own CSV file":
     uploaded_file = st.file_uploader('Upload CSV file', key='user_starting_article_input', type=['csv'])
     if uploaded_file is not None:
-        input_df = pd.read_csv(uploaded_file)
+        try:
+            input_df = pd.read_csv(uploaded_file)
+        except UnicodeDecodeError:
+            # Reset file pointer and try with ISO-8859-1 (Latin-1) encoding
+            uploaded_file.seek(0)
+            input_df = pd.read_csv(uploaded_file, encoding='ISO-8859-1')
+            
         if set(input_df.columns) != set(['seed_Id', 'seed_Title']):
             st.error("Error: Your CSV file doesn't have the correct columns. Please ensure it has 'seed_Id' and 'seed_Title' columns.")
         else:
