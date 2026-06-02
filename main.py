@@ -67,10 +67,10 @@ if input_option == "Upload your own CSV file":
             uploaded_file.seek(0)
             input_df = pd.read_csv(uploaded_file, encoding='ISO-8859-1')
             
-        if set(input_df.columns) != set(['seed_Id', 'seed_Title']):
+        if 'seed_Id' not in input_df.columns or 'seed_Title' not in input_df.columns:
             st.error("Error: Your CSV file doesn't have the correct columns. Please ensure it has 'seed_Id' and 'seed_Title' columns.")
             st.write("Columns detected: ", input_df.columns)
-            
+
         else:
             st.write("Uploaded file preview:")
             st.dataframe(input_df)
